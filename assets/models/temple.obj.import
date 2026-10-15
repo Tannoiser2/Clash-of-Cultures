@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://c8fu2767qdbj7"
+path="res://.godot/imported/temple.obj-87c3c8bfb912298d89f2f3a57f55f022.mesh"
+
+[deps]
+
+files=["res://.godot/imported/temple.obj-87c3c8bfb912298d89f2f3a57f55f022.mesh"]
+
+source_file="res://assets/models/temple.obj"
+dest_files=["res://.godot/imported/temple.obj-87c3c8bfb912298d89f2f3a57f55f022.mesh", "res://.godot/imported/temple.obj-87c3c8bfb912298d89f2f3a57f55f022.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false
