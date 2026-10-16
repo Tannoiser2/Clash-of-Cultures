@@ -34,6 +34,11 @@ Versione digitale per uso personale di **Clash of Cultures: Monumental Edition**
 - **Testi in italiano**: avanzamenti, carte, eventi e obiettivi tradotti (passa il mouse sopra per leggerli);
   le immagini delle carte restano quelle originali.
 
+Semplificazioni: con la Navigazione le navi raggiungono qualsiasi mare sul bordo del tabellone (non solo il primo
+gruppo nella direzione scelta), i pagamenti usano automaticamente prima la risorsa richiesta e poi Oro/Idee, e gli
+obiettivi si completano da soli quando sono soddisfatti. L'IA è euristica: espande, si difende dai barbari e
+attacca quando è in vantaggio, ma costruisce poche meraviglie.
+
 Non c'è ancora l'espansione **Civiltà** (capi, cavalleria, elefanti, pirati, mercati, obelischi, osservatori e le
 15 civiltà), e gli scambi liberi fra giocatori non sono gestiti.
 
