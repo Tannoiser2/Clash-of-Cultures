@@ -62,16 +62,20 @@ func adv_value(eng, p: int, a: String) -> float:
 		if eng.players[p]["adv"].has(x[0]):
 			owned += 1
 	v += owned * 0.4
-	if a == "Tactics" and _barb_threat(eng, p) > 0:
-		v += 4.0
+	if a == "Tactics" and (_barb_threat(eng, p) > 0 or not eng.cities_of(-1).is_empty()):
+		v += 5.0
 	if a == "Fishing" and not _any_coastal(eng, p):
 		v -= 3.0
 	if a == "Irrigation" and not _near_barren(eng, p):
 		v -= 2.5
 	if a == "Storage" and eng.res(p, "food") >= 2:
 		v += 2.0
-	if a in ["Draft", "Nationalism"] and eng.has_adv(p, "Draft"):
-		v += 0.0
+	if a == "Engineering" and eng.age >= 2:
+		v += 2.0
+	# prerequisito della meraviglia in mano
+	for w in eng.players[p]["won"]:
+		if D.WONDERS[w]["req"] == a:
+			v += 3.0
 	return v
 
 
@@ -106,7 +110,11 @@ func _barb_threat(eng, p: int) -> int:
 func _city_threat(eng, p: int, c: Dictionary) -> int:
 	var k := 0
 	for u in eng.units.values():
-		if u["o"] != p and eng.is_army(u) and eng.hdist(u["h"], c["h"]) <= 2:
+		if u["o"] != p and eng.is_army(u) and eng.hdist(u["h"], c["h"]) <= 3:
+			k += 1
+	# le città barbare vicine generano rinforzi
+	for b in eng.cities_of(-1):
+		if eng.hdist(b["h"], c["h"]) <= 3:
 			k += 1
 	return k
 
@@ -191,16 +199,19 @@ func _turn(eng, p: int) -> Dictionary:
 			var picks: Array = eng.auto_collect(c, _need_weights(eng, p))
 			if not picks.is_empty() and eng.valid_collect(c, picks):
 				var gv := 0.0
+				var wt := _wonder_target(eng, p)
 				for pk in picks:
 					var r: String = pk[1]
 					if r == "mood" or eng.res(p, r) < eng.res_limit(p, r):
 						gv += 1.0
+					if wt != "" and r in ["food", "wood", "ore"] and eng.res(p, r) < D.WONDERS[wt]["cost"][r]:
+						gv += 0.8
 				cands.append([gv * 1.6 - extra_act + _jitter(), {"t": "collect", "c": c["id"], "picks": picks,
 					"metal": eng.has_adv(p, "Metallurgy")}])
 			# costruzione
 			for b in D.BUILDINGS:
 				if eng.can_build(p, c, b) == "" and eng.can_pay(p, eng.build_cost(p, b)):
-					var bvv := _building_value(eng, p, c, b)
+					var bvv := _building_value(eng, p, c, b) - _saving_penalty(eng, p, eng.build_cost(p, b))
 					cands.append([bvv - extra_act + _jitter(), {"t": "build", "c": c["id"], "b": b}])
 			# meraviglie
 			for w in eng.players[p]["won"]:
@@ -209,7 +220,9 @@ func _turn(eng, p: int) -> Dictionary:
 			# reclutamento
 			var rc := _recruit_plan(eng, p, c)
 			if not rc.is_empty():
-				cands.append([rc[0] - extra_act + _jitter(), rc[1]])
+				var rcost: Dictionary = eng.recruit_cost(p, rc[1]["comp"], rc[1]["sanit"], rc[1]["draft"])
+				var pen := 0.0 if _city_threat(eng, p, c) > 0 else _saving_penalty(eng, p, rcost)
+				cands.append([rc[0] - extra_act - pen + _jitter(), rc[1]])
 		# avanzamento
 		var buy: Array = eng.buyable_advances(p)
 		if not buy.is_empty():
@@ -220,7 +233,7 @@ func _turn(eng, p: int) -> Dictionary:
 				if v > bav:
 					bav = v
 					ba = a
-			cands.append([3.0 + bav * 0.55, {"t": "advance", "a": ba}])
+			cands.append([3.0 + bav * 0.55 - _saving_penalty(eng, p, {"food": 2}), {"t": "advance", "a": ba}])
 		# movimento
 		var mv := _best_group_move(eng, p, {})
 		if not mv.is_empty() and mv[0] > 2.0:
@@ -253,7 +266,37 @@ func _need_weights(eng, p: int) -> Dictionary:
 		w[r] = 1.6 - 0.15 * have
 	w["food"] += 0.3
 	w["mood"] = 1.0 if eng.res(p, "mood") < 3 else 0.6
+	# meraviglia in vista: servono le sue risorse
+	var wt := _wonder_target(eng, p)
+	if wt != "":
+		var cost: Dictionary = D.WONDERS[wt]["cost"]
+		for r in ["food", "wood", "ore"]:
+			if eng.res(p, r) < cost[r]:
+				w[r] += 0.8
 	return w
+
+
+## Penalità per una spesa che allontana dalla meraviglia che si sta preparando.
+func _saving_penalty(eng, p: int, cost: Dictionary) -> float:
+	var wt := _wonder_target(eng, p)
+	if wt == "" or eng.age < 2:
+		return 0.0
+	var need: Dictionary = D.WONDERS[wt]["cost"]
+	var pen := 0.0
+	for r in ["wood", "ore", "food"]:
+		if cost.get(r, 0) > 0 and eng.res(p, r) < need[r]:
+			pen += (2.5 if r != "food" else 1.5) * (2.0 if eng.res(p, "culture") >= 3 else 1.0)
+	return pen
+
+
+## Meraviglia in mano che si può puntare (prerequisiti posseduti o quasi).
+func _wonder_target(eng, p: int) -> String:
+	if not eng.has_adv(p, "Engineering"):
+		return ""
+	for w in eng.players[p]["won"]:
+		if eng.has_adv(p, D.WONDERS[w]["req"]):
+			return w
+	return ""
 
 
 func _building_value(eng, p: int, c: Dictionary, b: String) -> float:
@@ -288,7 +331,7 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 		var k := mini(budget, mini(threat - here + 1, 4 - here))
 		comp["infantry"] = k
 		budget -= k
-		v += 4.0 * k
+		v += 5.5 * k + (3.0 if here == 0 else 0.0)
 	# coloni per espandersi
 	if budget > 0 and ncity + settlers < 7 and settlers < 2 and eng.supply_left(p, "settler") > 0:
 		comp["settler"] = 2 if (budget >= 2 and ncity < 4 and settlers == 0) else 1
@@ -338,6 +381,10 @@ func _happy_plan(eng, p: int) -> Array:
 	for c in cs:
 		if steps.has(c["id"]) and c["mood"] == 0:
 			v += 2.0
+	# una città felice serve per costruire la meraviglia
+	var wt := _wonder_target(eng, p)
+	if wt != "" and not cs.any(func(c): return c["mood"] == 2) and eng.res(p, "culture") >= 4:
+		v += 5.0
 	return [v, {"t": "happy", "steps": steps}]
 
 
@@ -401,7 +448,7 @@ func _free_move(eng, p: int, w: String) -> Array:
 			if eng.res(p, "mood") >= 4 and eng.T["actions"] <= 1:
 				return [5.5, {"t": "free", "what": "absolute"}]
 		"drama":
-			if eng.res(p, "mood") >= 4:
+			if eng.res(p, "mood") >= 4 or (_wonder_target(eng, p) != "" and eng.res(p, "mood") >= 2 and eng.res(p, "culture") < 5):
 				return [2.0, {"t": "free", "what": "drama", "dir": "m2c"}]
 		"civil":
 			if eng.res(p, "mood") <= 1:
@@ -595,6 +642,8 @@ func _choice(eng, p: int, req: Dictionary) -> int:
 		var d: int = eng._fighters(bt, "def").size()
 		return 1 if a < d else 0
 	if title.find("Tempio ti dà") >= 0 or title.find("Nazionalismo") >= 0:
+		if _wonder_target(eng, p) != "" and eng.res(p, "culture") < 5:
+			return 1
 		return 1 if eng.res(p, "culture") < eng.res(p, "mood") + 1 else 0
 	if title.begins_with("Miti"):
 		return 0 if eng.res(p, "mood") >= 2 else 1

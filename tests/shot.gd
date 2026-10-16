@@ -104,7 +104,7 @@ func _run() -> void:
 		g._provide({"done": true})
 	var count := 0
 	var t0 := Time.get_ticks_msec()
-	while g.engine.turn_count < turns * 4 and not g.engine.game_over and Time.get_ticks_msec() - t0 < 120000:
+	while g.engine.turn_count < turns * 4 and not g.engine.game_over and Time.get_ticks_msec() - t0 < 400000:
 		await wait(2)
 		if not g.pending.is_empty():
 			if g.pending["type"] == "choice" and count < 3:
@@ -112,6 +112,10 @@ func _run() -> void:
 				await shot("choice_%d" % count)
 			auto_answer()
 	await wait(20)
+	if g.engine.game_over:
+		await wait(90)
+		await shot("end")
+		g._clear_modal()
 	g.board.focus(home)
 	await wait(30)
 	await shot("later")

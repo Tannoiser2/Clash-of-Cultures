@@ -30,7 +30,7 @@ func _initialize() -> void:
 		if show_log and g == 0:
 			for l in e.log_lines:
 				print(l)
-		var line := "partita %d:" % g
+		var line := "partita %d (era %d):" % [g, e.age]
 		for r in e.results:
 			var s: Dictionary = r["score"]
 			line += "  %s %.1f (città %d, pezzi %d, av %.1f, ob %d, mer %.1f)" % [e.pname(r["p"]), r["total"], e.cities_of(r["p"]).size(), s["pieces"], s["adv"], s["obj"], s["wonders"]]
