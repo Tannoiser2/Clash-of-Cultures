@@ -266,6 +266,17 @@ func new_turn_state(p: int) -> void:
 func eff_size(c: Dictionary) -> int:
 	var s := city_size(c)
 	var m: int = c["mood"]
+	if exp and c["o"] >= 0:
+		var o: int = c["o"]
+		# Ballcourts (Maya): 1 Umore per una città non Arrabbiata di 1 più grande
+		if T.get("bc_city", -1) == c["id"] and m > 0:
+			s += 1
+		# Attila: le città Felici o Neutrali di dimensione 1 in cui si trova valgono 1 in più
+		if leader_is(o, "l22") and leader_at(o, c["h"]) and city_size(c) == 1 and m > 0:
+			s += 1
+		# Bleda: la sua città funziona come Felice alla prima attivazione
+		if leader_is(o, "l23") and leader_at(o, c["h"]) and c["act"] == 0:
+			m = 2
 	if m == 0 and T.get("forced", false) and c["o"] == T.get("p", -1):
 		m = 1
 	if m == 2:
@@ -276,6 +287,8 @@ func eff_size(c: Dictionary) -> int:
 
 
 func can_activate(c: Dictionary) -> bool:
+	if exp and c["o"] >= 0 and c["act"] >= 1 and leader_is(c["o"], "l23") and leader_at(c["o"], c["h"]):
+		return false
 	if c["mood"] == 0 and T["angry_act"].has(c["id"]):
 		return false
 	if c["mood"] == 0 and c["act"] > 0 and not T["angry_act"].has(c["id"]):
@@ -292,12 +305,30 @@ func activate(c: Dictionary) -> void:
 
 ## Dopo l'azione: ogni attivazione in più nello stesso turno peggiora l'umore.
 func after_activation(c: Dictionary) -> void:
+	var p: int = c["o"]
+	if exp and p >= 0:
+		# Imhotep: +1 Idea quando la sua città si attiva per altro che raccogliere
+		if leader_is(p, "l17") and leader_at(p, c["h"]) and not T.get("act_collect", false):
+			gain(p, "idea", 1)
+		# Città-stato (Grecia): una volta per turno un'altra città si considera attivata al posto di questa
+		if c["act"] > 1 and civ_adv(p, "City-States") and not T.get("citystates", false):
+			for x in cities_of(p):
+				if x["id"] != c["id"] and x["act"] == 0 and city_size(x) >= city_size(c) and x["mood"] >= c["mood"]:
+					T["citystates"] = true
+					c["act"] -= 1
+					x["act"] += 1
+					log_msg("Città-stato: %s evita il calo d'umore." % pname(p))
+					break
 	if c["act"] > 1:
 		change_mood(c, -1)
 		log_msg("La città di %s si è attivata di nuovo: l'umore peggiora (%s)." % [pname(c["o"]), D.MOOD_NAME[c["mood"]]])
 
 
 func spend_action(free: bool) -> void:
+	if not free and T.get("free_next", false):
+		# Shogunato / Alessandro: questa carta «come azione» non costa un'azione
+		T["free_next"] = false
+		return
 	if not free:
 		T["actions"] -= 1
 
@@ -464,9 +495,26 @@ func do_found(p: int, uid: int) -> bool:
 	var k: String = u["h"]
 	units.erase(uid)
 	new_city(p, k, 1)
+	# Boudicca, grandi numeri: 1 Cibo per tenere il Colono
+	if lcode(p) == "l10" and leader_at(p, k) and res(p, "food") >= 1 and supply_left(p, "settler") > 0:
+		if await yes_no(p, "Boudicca: paghi 1 Cibo per tenere il Colono?"):
+			lose(p, "food", 1)
+			new_unit(p, "settler", k)
 	log_msg("%s fonda una città (%s)." % [pname(p), D.TER_NAME[ter(k)]])
 	if civ_adv(p, "Aztec Gold"):
 		gain(p, "gold", 1)
+		# per ogni Montagna adiacente si può cambiare 1 risorsa, Umore o Cultura in Oro
+		for x in neighbors(k):
+			if ter(x) != "mountain":
+				continue
+			var kinds: Array = (["food", "wood", "ore", "idea", "mood", "culture"] as Array).filter(func(r): return res(p, r) > 0)
+			if kinds.is_empty():
+				break
+			var j := await choose(p, "Oro azteco: cambi qualcosa in 1 Oro?", ["No"] + kinds.map(func(r): return D.RES_NAME[r]), {"force": true})
+			if j == 0:
+				break
+			lose(p, kinds[j - 1], 1)
+			gain(p, "gold", 1)
 	if civ_adv(p, "Stelas"):
 		gain(p, "culture", 1)
 	fx.emit("found", {"h": k})
@@ -494,6 +542,27 @@ func collect_options(c: Dictionary) -> Dictionary:
 				var o2 := _collect_res(p, k, c, false)
 				if not o2.is_empty():
 					far.append({"h": k, "opts": o2, "far": true})
+	# Impero tributario (Aztechi): anche dalle caselle con città nemiche entro 2 (le barbare danno anche Prigionieri)
+	if civ_adv(p, "Tribute Empire"):
+		for k in within(c["h"], 2, false):
+			var oc := city_at(k)
+			if oc.is_empty() or oc["o"] == p:
+				continue
+			var t := ter(k)
+			var o3: Array = []
+			match t:
+				"plains":
+					o3 = ["food"]
+				"forest":
+					o3 = ["wood"]
+				"mountain":
+					o3 = ["ore"]
+				"barren":
+					o3 = ["food"] if has_adv(p, "Irrigation") or civ_adv(p, "Flood Plains") else []
+			if oc["o"] == -1 and not armies_at(k, -1).is_empty() and int(players[p].get("captives", 0)) < 4:
+				o3.append("captive")
+			if not o3.is_empty():
+				slots.append({"h": k, "opts": o3, "far": false})
 	return {"slots": slots, "far": far, "count": eff_size(c), "far_max": 2 if has_adv(p, "Roads") else 1}
 
 
@@ -619,6 +688,15 @@ func do_collect(p: int, cid: int, picks: Array, card := "", metal := false, free
 		if civ_adv(p, "Pottery") and got.get("food", 0) >= 3 and not T.get("pottery", false):
 			T["pottery"] = true
 			got["culture"] = got.get("culture", 0) + 1
+	if got.has("captive"):
+		for pk in picks:
+			if pk[1] == "captive":
+				var bu := armies_at(pk[0], -1)
+				if not bu.is_empty():
+					units.erase(bu[0]["id"])
+					players[p]["captives"] += 1
+		got.erase("captive")
+		log_msg("%s prende un Prigioniero come tributo." % pname(p))
 	var parts := []
 	for r in got:
 		var g := gain(p, r, got[r])
@@ -627,7 +705,9 @@ func do_collect(p: int, cid: int, picks: Array, card := "", metal := false, free
 	T["collects"] += 1
 	log_msg("%s raccoglie: %s." % [pname(p), ", ".join(parts)])
 	await _lighthouse(p, c)
+	T["act_collect"] = true
 	after_activation(c)
+	T.erase("act_collect")
 	fx.emit("collect", {"h": c["h"], "got": got})
 	changed.emit()
 	return true
@@ -642,9 +722,10 @@ func auto_collect(c: Dictionary, weights := {}) -> Array:
 	var cand := []
 	for s in info["slots"] + info["far"]:
 		for r in s["opts"]:
-			var have := res(p, r) if r != "mood" else 0
-			var room: int = res_limit(p, r) - have if r != "mood" else 9
-			var v: float = w[r] * (1.0 if room > 0 else 0.05)
+			var plain: bool = r in D.RES
+			var have := res(p, r) if plain else 0
+			var room: int = res_limit(p, r) - have if plain else 9
+			var v: float = w.get(r, 1.3) * (1.0 if room > 0 else 0.05)
 			cand.append({"h": s["h"], "r": r, "v": v, "far": s["far"], "sea": is_sea(s["h"])})
 	cand.sort_custom(func(a, b): return a["v"] > b["v"])
 	var picks := []
@@ -663,7 +744,7 @@ func auto_collect(c: Dictionary, weights := {}) -> Array:
 			continue
 		# non sprecare oltre il limite
 		var r: String = x["r"]
-		if r != "mood" and res(p, r) + count.get(r, 0) >= res_limit(p, r):
+		if r in D.RES and res(p, r) + count.get(r, 0) >= res_limit(p, r):
 			continue
 		used[x["h"]] = true
 		count[r] = count.get(r, 0) + 1
@@ -726,11 +807,12 @@ func do_build(p: int, cid: int, b: String, free_cost := false, activation := tru
 	if can_build(p, c, b, not activation) != "":
 		return false
 	var cost := {} if free_cost else build_cost(p, b, c)
-	if not can_pay(p, cost):
+	if not can_pay_build(p, c, b, cost) and not cost.is_empty():
 		return false
 	if b == "temple" and not cost.has("food") and not free_cost:
 		T["statrel"] = true
-	pay(p, cost)
+	if not cost.is_empty():
+		pay_build(p, cost, c, b)
 	if activation:
 		activate(c)
 	if use_action:
@@ -765,6 +847,27 @@ func do_build(p: int, cid: int, b: String, free_cost := false, activation := tru
 	if activation:
 		await _lighthouse(p, c)
 		after_activation(c)
+	if exp and leader_at(p, c["h"]):
+		# Go-Toba, studioso: dopo un'Accademia o un Osservatorio, un avanzamento come azione gratuita
+		if lcode(p) == "l28" and b in ["academy", "observatory"]:
+			var lst := buyable_advances(p)
+			if not lst.is_empty() and await yes_no(p, "Go-Toba: compri subito un avanzamento (azione gratuita)?"):
+				var i2 := await choose(p, "Quale avanzamento?", lst.map(func(a): return D.adv_it(a)), {"advances": lst, "force": true})
+				pay(p, {"food": adv_food_cost(p, lst[i2])}, ["idea"])
+				await gain_advance(p, lst[i2], true)
+		# Siyaj K'ak': dopo una costruzione, un'Influenza gratuita dalla sua città
+		if lcode(p) == "l32":
+			var ops := influence_options(p).filter(func(o): return o["from"] == c["id"] and o["need"] <= res(p, "culture"))
+			if not ops.is_empty():
+				var labels := ["No"]
+				var pick := []
+				for o in ops:
+					for bb in o["b"]:
+						labels.append(infl_target_text(o, bb) + (" (+%d Cultura)" % o["need"] if o["need"] > 0 else ""))
+						pick.append([o, bb])
+				var j3 := await choose(p, "Siyaj K'ak', afflusso culturale: tenti un'Influenza gratuita?", labels, {"force": true})
+				if j3 > 0:
+					await do_influence(p, c["id"], pick[j3 - 1][0]["to"], pick[j3 - 1][1], true)
 	changed.emit()
 	return true
 
@@ -860,8 +963,18 @@ func recruit_cost(p: int, comp: Dictionary, sanit: bool, draft: bool, c := {}) -
 		if t == "infantry" and draft and k > 0:
 			k -= 1
 			cost["mood"] = cost.get("mood", 0) + (2 if has_adv(p, "Civil Liberties") else 1)
+		if t == "ship" and draft and k > 0 and comp.get("infantry", 0) == 0 and civ_adv(p, "Mercenaries"):
+			k -= 1
+			cost["mood"] = cost.get("mood", 0) + (2 if has_adv(p, "Civil Liberties") else 1)
 		for r in D.U_COST[t]:
 			cost[r] = cost.get(r, 0) + D.U_COST[t][r] * k
+	# Spartani: Cultura al posto dell'Umore della Leva; Mercenari: Oro
+	if draft and exp and cost.get("mood", 0) > res(p, "mood"):
+		var miss: int = cost["mood"] - res(p, "mood")
+		var sub := "culture" if civ_adv(p, "Spartans") else ("gold" if civ_adv(p, "Mercenaries") else "")
+		if sub != "":
+			cost["mood"] -= miss
+			cost[sub] = cost.get(sub, 0) + miss
 	return cost
 
 
@@ -898,11 +1011,12 @@ func valid_recruit(p: int, c: Dictionary, comp: Dictionary, sanit := false, draf
 		var here := armies_at(c["h"], p).size()
 		if comp.get("leader", 0) > 0 and leader_at(p, c["h"]):
 			here -= 1
-		if here + n_army > 4:
-			return "massimo 4 unità d'armata per casella"
+		if here + n_army > stack_limit(p, c["h"]):
+			return "massimo %d unità d'armata per casella" % stack_limit(p, c["h"])
 	if sanit and (not has_adv(p, "Sanitation") or comp.get("settler", 0) == 0):
 		return "Igiene non disponibile"
-	if draft and (not has_adv(p, "Draft") or comp.get("infantry", 0) == 0):
+	var draft_ship: bool = civ_adv(p, "Mercenaries") and comp.get("ship", 0) > 0
+	if draft and (not has_adv(p, "Draft") or (comp.get("infantry", 0) == 0 and not draft_ship)):
 		return "Leva non disponibile"
 	if not can_pay(p, recruit_cost(p, comp, sanit, draft, c)):
 		return "risorse insufficienti"
@@ -923,6 +1037,12 @@ func do_recruit(p: int, cid: int, comp: Dictionary, sanit := false, draft := fal
 		var k: int = comp.get(t, 0)
 		if t == "leader" and k > 0:
 			await _choose_leader(p)
+		if t == "infantry" and k > 0 and draft and T.get("shogun_req", false) and civ_adv(p, "Shogunate") and not T.get("shogun_d", false):
+			# Shogunato: la Leva porta una carta Azione invece di una Fanteria
+			T["shogun_d"] = true
+			k -= 1
+			draw_action(p)
+			log_msg("Shogunato: %s pesca una carta Azione con la Leva." % pname(p))
 		for i in k:
 			if supply_left(p, t) <= 0:
 				# pezzo spostato dal tabellone
@@ -944,6 +1064,8 @@ func do_recruit(p: int, cid: int, comp: Dictionary, sanit := false, draft := fal
 				break
 	if civ_adv(p, "Formal Training") and c["b"].has("academy"):
 		gain(p, "idea", 1)
+	if draft and leader_is(p, "l20") and leader_at(p, c["h"]):
+		gain(p, "culture", 1)
 	var army_rec: bool = comp.get("ship", 0) > 0
 	for t in D.ARMY:
 		if comp.get(t, 0) > 0:
@@ -962,8 +1084,45 @@ func do_recruit(p: int, cid: int, comp: Dictionary, sanit := false, draft := fal
 			await naval_battle(p, ships_at(c["port"], p), c["port"], "")
 	await _lighthouse(p, c)
 	after_activation(c)
+	if exp:
+		await _after_recruit_exp(p, c, comp)
 	await check_now(p, "recruit", {})
 	return true
+
+
+## Dopo il reclutamento: Vercingetorige (schieramento rapido), Espansione (Cina) e Arcieri a cavallo (Unni).
+func _after_recruit_exp(p: int, c: Dictionary, comp: Dictionary) -> void:
+	if leader_is(p, "l11") and leader_at(p, c["h"]):
+		var news := []
+		for u in units_of(p):
+			if u["h"] == c["h"] and u["t"] != "ship" and u["t"] != "leader" and u["on"] == -1:
+				news.append(u)
+		var k_new := 0
+		for t in comp:
+			if t != "ship" and t != "leader":
+				k_new += int(comp[t])
+		news = news.slice(maxi(0, news.size() - k_new))
+		var dests := []
+		for x in neighbors(c["h"]):
+			if is_land(x) and not has_enemy(x, p) and armies_at(x, p).size() + news.filter(func(u): return is_army(u)).size() <= stack_limit(p, x):
+				dests.append(x)
+		if not news.is_empty() and not dests.is_empty():
+			var j := await choose(p, "Reclutamento rapido: dove schieri le nuove unità?", ["Restano in città"] + dests.map(func(x): return _hex_label(x)), {"force": true, "hexes": [""] + dests})
+			if j > 0:
+				for u in news:
+					u["h"] = dests[j - 1]
+	var move_kind := ""
+	if comp.get("settler", 0) > 0 and civ_adv(p, "Sprawling"):
+		move_kind = "settlers"
+	elif comp.get("cavalry", 0) > 0 and civ_adv(p, "Mounted Archers"):
+		move_kind = "cavalry"
+	if move_kind != "" and await yes_no(p, "%s: muovi subito %s?" % ["Espansione" if move_kind == "settlers" else "Arcieri a cavallo",
+			"i Coloni nelle città" if move_kind == "settlers" else "la nuova Cavalleria"], "Sì", "No"):
+		T["move_only"] = move_kind
+		T["move_only_h"] = c["h"]
+		await do_move_action(p, true, 3)
+		T.erase("move_only")
+		T.erase("move_only_h")
 
 
 func _lighthouse(p: int, c: Dictionary) -> void:
@@ -989,7 +1148,7 @@ func _lighthouse(p: int, c: Dictionary) -> void:
 
 # ------------------------------------------------------------------ meraviglie
 
-func can_build_wonder(p: int, c: Dictionary, w: String, discount := 0) -> String:
+func can_build_wonder(p: int, c: Dictionary, w: String, discount := 0, ignore_act := false) -> String:
 	if not players[p]["won"].has(w):
 		return "non hai la carta"
 	if city_size(c) >= 5:
@@ -1008,16 +1167,18 @@ func can_build_wonder(p: int, c: Dictionary, w: String, discount := 0) -> String
 		return "serve una città con Porto"
 	if plague_by >= 0 and not has_adv(p, "Sanitation"):
 		return "Peste: niente costruzioni"
-	if not can_activate(c):
+	if not ignore_act and not can_activate(c):
 		return "città già attivata"
-	var cost: Dictionary = info["cost"].duplicate()
-	cost["culture"] = maxi(0, cost["culture"] - discount - arch)
-	if not plan_payment_wonder(p, cost):
+	var cost: Dictionary = wonder_cost(p, c, w)
+	cost["culture"] = maxi(0, cost["culture"] - discount)
+	if not plan_payment_wonder(p, cost, c):
 		return "risorse insufficienti"
 	return ""
 
 
-func plan_payment_wonder(p: int, cost: Dictionary) -> bool:
+func plan_payment_wonder(p: int, cost: Dictionary, c := {}) -> bool:
+	if exp and (civ_adv(p, "Architecture") or (not c.is_empty() and leader_at(p, c["h"]))):
+		return not plan_build(p, cost, c, "wonder").is_empty()
 	# la Cultura per le meraviglie non si sostituisce con l'Umore (nemmeno con l'Arena)
 	if res(p, "culture") < cost.get("culture", 0):
 		return false
@@ -1026,23 +1187,27 @@ func plan_payment_wonder(p: int, cost: Dictionary) -> bool:
 	return can_pay(p, c2)
 
 
-func do_wonder(p: int, cid: int, w: String) -> bool:
+func do_wonder(p: int, cid: int, w: String, activation := true, use_action := true) -> bool:
 	if not cities.has(cid):
 		return false
 	var c: Dictionary = cities[cid]
-	if can_build_wonder(p, c, w) != "":
+	if can_build_wonder(p, c, w, 0, not activation) != "":
 		return false
-	var cost: Dictionary = D.WONDERS[w]["cost"].duplicate()
+	var cost: Dictionary = wonder_cost(p, c, w)
 	if int(players[p].get("architect", 0)) > 0:
-		cost["culture"] = maxi(0, cost["culture"] - int(players[p]["architect"]))
 		players[p]["architect"] = 0
 		discards["event"].append("e55")
 		log_msg("Il Grande architetto dirige i lavori.")
-	lose(p, "culture", cost["culture"])
-	cost.erase("culture")
-	pay(p, cost)
-	activate(c)
-	spend_action(false)
+	if exp and not plan_build(p, cost, c, "wonder").is_empty() and plan_payment(p, cost).is_empty():
+		pay_build(p, cost, c, "wonder")
+	else:
+		lose(p, "culture", cost["culture"])
+		cost.erase("culture")
+		pay(p, cost)
+	if activation:
+		activate(c)
+	if use_action:
+		spend_action(false)
 	players[p]["won"].erase(w)
 	c["w"].append(w)
 	wonder_builder[w] = p
@@ -1051,8 +1216,9 @@ func do_wonder(p: int, cid: int, w: String) -> bool:
 	fx.emit("wonder", {"h": c["h"], "w": w})
 	if w == "great_statue":
 		draw_objective(p)
-	await _lighthouse(p, c)
-	after_activation(c)
+	if activation:
+		await _lighthouse(p, c)
+		after_activation(c)
 	changed.emit()
 	await check_now(p, "wonder", {})
 	return true
@@ -1156,33 +1322,63 @@ func influence_buildings(p: int, target: Dictionary) -> Array:
 	return out
 
 
-## Tentativi possibili: [{from, to, b:[edifici], range_need}].
+## Tentativi possibili: [{from, to, b:[edifici], need, src_h, to_h, label}]. Con l'espansione «to» può
+## indicare un'unità (-(id)-1, Zoroastrismo) e «b» contenere "druid" (Influenza druidica) o "unit".
 func influence_options(p: int) -> Array:
 	var out := []
 	if T.get("infl_ok", false):
 		return out
-	for src in cities_of(p):
-		var self_only := is_influenced(src)
+	var srcs: Array = influence_sources_exp(p) if exp else []
+	if not exp:
+		for c in cities_of(p):
+			srcs.append({"from": c["id"], "h": c["h"], "range": city_size(c), "self_only": is_influenced(c), "label": "tua città di dim. %d" % city_size(c)})
+	for src in srcs:
+		var self_only: bool = src["self_only"]
 		for id in cities:
 			var tg: Dictionary = cities[id]
-			if self_only and tg["id"] != src["id"]:
+			if self_only and tg["id"] != src["from"]:
 				continue
 			var bs := influence_buildings(p, tg)
+			if tg["o"] == -1 and civ_adv(p, "Druidic Influence") and not tg.has("druid"):
+				bs = ["druid"]
 			if bs.is_empty():
 				continue
-			if tg["o"] == p and tg["id"] != src["id"] and not is_influenced(tg):
+			if tg["o"] == p and tg["id"] != src["from"] and not is_influenced(tg):
 				continue
 			var d := dist_revealed(src["h"], tg["h"])
 			if d > 50:
 				continue
-			var rng_src := city_size(src) + (1 if leader_is(p, "l16") and leader_at(p, src["h"]) else 0)
-			var need := maxi(0, d - rng_src)
+			var need := maxi(0, d - int(src["range"]))
 			if need > 0 and (self_only or boost_blocked(p, tg)):
 				continue
 			if need > res(p, "culture"):
 				continue
-			out.append({"from": src["id"], "to": tg["id"], "b": bs, "need": need})
+			out.append({"from": src["from"], "to": tg["id"], "b": bs, "need": need, "src_h": src["h"], "to_h": tg["h"], "label": src["label"]})
+		# Zoroastrismo: un'unità d'armata nemica (non Capo) su una casella senza città
+		if civ_adv(p, "Zoroastrianism") and not self_only:
+			for u in units.values():
+				if u["o"] == p or u["t"] == "leader" or not is_army(u) or u["on"] != -1 or not city_at(u["h"]).is_empty():
+					continue
+				var d2 := dist_revealed(src["h"], u["h"])
+				if d2 > 50:
+					continue
+				var need2 := maxi(0, d2 - int(src["range"]))
+				if need2 > res(p, "culture"):
+					continue
+				out.append({"from": src["from"], "to": -int(u["id"]) - 1, "b": ["unit"], "need": need2, "src_h": src["h"], "to_h": u["h"], "label": src["label"]})
 	return out
+
+
+## Descrizione di un bersaglio dell'influenza (per l'interfaccia).
+func infl_target_text(o: Dictionary, b: String) -> String:
+	if b == "unit":
+		var uid: int = -int(o["to"]) - 1
+		var u: Dictionary = units.get(uid, {})
+		return "%s di %s (Zoroastrismo)" % [D.U_NAME.get(u.get("t", ""), "Unità"), pname(u.get("o", -1))]
+	var tg: Dictionary = cities[o["to"]]
+	if b == "druid":
+		return "Città barbara (Influenza druidica: 1 PV)"
+	return "%s nella città di %s" % [D.B_NAME[b], pname(tg["o"])]
 
 
 func do_influence(p: int, from_id: int, to_id: int, b: String, free := false) -> bool:
@@ -1192,7 +1388,10 @@ func do_influence(p: int, from_id: int, to_id: int, b: String, free := false) ->
 			ok_opt = o
 	if ok_opt.is_empty():
 		return false
-	var tg: Dictionary = cities[to_id]
+	var th: String = ok_opt["to_h"]
+	var tg: Dictionary = cities.get(to_id, {})
+	var src_c: Dictionary = cities.get(from_id, {}) if from_id >= 0 else {}
+	var src_free: bool = src_c.is_empty() or not is_influenced(src_c) or src_c["o"] != p
 	spend_action(free)
 	if ok_opt["need"] > 0:
 		lose(p, "culture", ok_opt["need"])
@@ -1200,30 +1399,50 @@ func do_influence(p: int, from_id: int, to_id: int, b: String, free := false) ->
 	var bonus := 1 if has_adv(p, "Conversion") else 0
 	var tot := roll + bonus
 	last_dice = {"infl": [roll]}
-	fx.emit("influence_roll", {"roll": roll, "h": tg["h"]})
-	log_msg("%s tenta di influenzare %s: tiro %d%s." % [pname(p), "la città di " + pname(tg["o"]), roll, " +1" if bonus else ""])
+	fx.emit("influence_roll", {"roll": roll, "h": th})
+	log_msg("%s tenta di influenzare: %s, tiro %d%s." % [pname(p), infl_target_text(ok_opt, b), roll, " +1" if bonus else ""])
 	await wait(0.8)
-	if tot < 5 and not cities[from_id].is_empty() and not is_influenced(cities[from_id]) and not boost_blocked(p, tg):
+	# Ashoka: una volta per turno ritira se la sua città ha un Tempio o il bersaglio è un Tempio
+	if tot < 5 and lcode(p) == "l26" and leader_at(p, ok_opt["src_h"]) and not T.get("ashoka", false) \
+			and (b == "temple" or (not src_c.is_empty() and src_c["b"].has("temple"))):
+		if await yes_no(p, "Ashoka: ritiri il dado?"):
+			T["ashoka"] = true
+			roll = d6()
+			tot = roll + bonus
+			log_msg("Ashoka ritira: %d." % roll)
+	if tot < 5 and src_free and (tg.is_empty() or not boost_blocked(p, tg)):
 		var need := 5 - tot
 		if res(p, "culture") >= need:
 			if await yes_no(p, "Tiro %d: spendi %d Cultura per riuscire?" % [tot, need], "Sì, spendi %d" % need, "No"):
 				lose(p, "culture", need)
 				tot += need
 	if tot >= 5:
-		var prev: int = tg["b"][b]
-		tg["b"][b] = p
 		T["infl_ok"] = true
 		if has_adv(p, "Conversion"):
 			gain(p, "culture", 1)
 		if civ_adv(p, "Code of Laws") and players[p]["hand"].size() <= 4:
 			draw_action(p)
-		if leader_is(p, "l35") and leader_at(p, cities[from_id]["h"]):
+		if leader_is(p, "l35") and leader_at(p, ok_opt["src_h"]):
 			gain(p, "mood", 1)
-		log_msg("Riuscito! %s di %s passa sotto l'influenza di %s." % [D.B_NAME[b], pname(prev), pname(p)])
-		fx.emit("influence", {"h": tg["h"], "ok": true})
+		match b:
+			"druid":
+				tg["druid"] = p
+				log_msg("Riuscito! I druidi di %s influenzano una città barbara (+1 PV)." % pname(p))
+			"unit":
+				var u: Dictionary = units[-to_id - 1]
+				var prev_o: int = u["o"]
+				u["o"] = p
+				log_msg("Riuscito! Un'unità di %s passa a %s." % [pname(prev_o), pname(p)])
+				if not enemy_units_at(u["h"], p).filter(func(x): return is_army(x)).is_empty():
+					await land_battle(p, [u], u["h"], u["h"], false)
+			_:
+				var prev: int = tg["b"][b]
+				tg["b"][b] = p
+				log_msg("Riuscito! %s di %s passa sotto l'influenza di %s." % [D.B_NAME[b], pname(prev), pname(p)])
+		fx.emit("influence", {"h": th, "ok": true})
 	else:
 		log_msg("L'influenza non riesce.")
-		fx.emit("influence", {"h": tg["h"], "ok": false})
+		fx.emit("influence", {"h": th, "ok": false})
 	changed.emit()
 	return true
 
@@ -1269,6 +1488,16 @@ func trade_routes(p: int) -> Dictionary:
 		var seen := {}
 		_augment(u["id"], adj, match_t, seen)
 	var tot := mini(match_t.size(), 4)
+	var pairs := []
+	for ti in match_t:
+		pairs.append([match_t[ti], targets[ti]["id"]])
+	# Re Hiram: la rotta del Colono o della Nave con cui si trova non conta nel limite di 4
+	if exp and match_t.size() > 4:
+		for ti in match_t:
+			var su: int = match_t[ti]
+			if units.has(su) and leader_is(p, "l38") and leader_at(p, units[su]["h"]):
+				tot = 5
+				break
 	var markets := {}
 	for ti in match_t:
 		if units.has(match_t[ti]) and units[match_t[ti]]["t"] == "ship":
@@ -1276,7 +1505,7 @@ func trade_routes(p: int) -> Dictionary:
 		var tc: Dictionary = targets[ti]
 		if exp and tc["o"] >= 0 and tc["b"].get("market", -9) == tc["o"]:
 			markets[tc["o"]] = true
-	return {"count": tot, "ships": mini(ships, tot), "markets": markets.keys()}
+	return {"count": tot, "ships": mini(ships, tot), "markets": markets.keys(), "pairs": pairs}
 
 
 func _augment(uid: int, adj: Dictionary, match_t: Dictionary, seen: Dictionary) -> bool:
@@ -1288,3 +1517,141 @@ func _augment(uid: int, adj: Dictionary, match_t: Dictionary, seen: Dictionary) 
 			match_t[ti] = uid
 			return true
 	return false
+
+
+# ------------------------------------------------------------------ pagamenti alternativi
+
+## Pagamento di un edificio o di una meraviglia con le sostituzioni delle civiltà e dei Capi.
+## Restituisce il piano {risorsa: quantità, "captives": n} oppure {} se non basta.
+func plan_build(p: int, cost: Dictionary, c: Dictionary, b: String) -> Dictionary:
+	var base := plan_payment(p, cost)
+	if not base.is_empty() or not exp:
+		return base
+	# risorse che mancano dopo aver usato quelle giuste e l'Oro
+	var have := {}
+	for r in D.RES + ["mood", "culture"]:
+		have[r] = res(p, r)
+	var plan := {}
+	var short := 0
+	for r in cost:
+		var need: int = cost[r]
+		var t := mini(need, have[r])
+		if t > 0:
+			plan[r] = plan.get(r, 0) + t
+			have[r] -= t
+		need -= t
+		if need > 0 and r != "culture" and r != "mood":
+			var g := mini(need, have["gold"])
+			if g > 0:
+				plan["gold"] = plan.get("gold", 0) + g
+				have["gold"] -= g
+				need -= g
+		if need > 0 and r == "culture" and civ_adv(p, "Architecture"):
+			var m := mini(need, have["mood"])
+			plan["mood"] = plan.get("mood", 0) + m
+			have["mood"] -= m
+			need -= m
+		if need > 0:
+			if r == "culture" or r == "mood":
+				return {}
+			short += need
+	if short == 0:
+		return plan
+	var here := not c.is_empty() and leader_at(p, c["h"])
+	# Pakal: 1 Cultura riduce il costo di 2 risorse
+	if here and lcode(p) == "l31" and b in bld_list() and have["culture"] >= 1:
+		plan["culture"] = plan.get("culture", 0) + 1
+		have["culture"] -= 1
+		short = maxi(0, short - 2)
+	# Acamapichtli: ogni Prigioniero vale 2 risorse
+	if short > 0 and here and lcode(p) == "l01":
+		var cap: int = int(players[p].get("captives", 0))
+		var k := mini(cap, (short + 1) / 2)
+		if k > 0:
+			plan["captives"] = k
+			short = maxi(0, short - 2 * k)
+	# Architettura (Egitto) ed Economia schiavile (Roma): Umore come qualsiasi risorsa
+	if short > 0 and (civ_adv(p, "Architecture") or (civ_adv(p, "Slave Economy") and b in bld_list())):
+		var m2 := mini(short, have["mood"])
+		if m2 > 0:
+			plan["mood"] = plan.get("mood", 0) + m2
+			have["mood"] -= m2
+			short -= m2
+	# Ziggurat: Idee come qualsiasi risorsa per i Templi
+	if short > 0 and b == "temple" and civ_adv(p, "Ziggurats"):
+		var i2 := mini(short, have["idea"])
+		if i2 > 0:
+			plan["idea"] = plan.get("idea", 0) + i2
+			short -= i2
+	if short > 0:
+		return {}
+	return plan
+
+
+func can_pay_build(p: int, c: Dictionary, b: String, cost := {}) -> bool:
+	if cost.is_empty():
+		cost = build_cost(p, b, c)
+	return cost.is_empty() or not plan_build(p, cost, c, b).is_empty()
+
+
+func pay_build(p: int, cost: Dictionary, c: Dictionary, b: String) -> void:
+	var pl := plan_build(p, cost, c, b)
+	for r in pl:
+		if r == "_":
+			continue
+		if r == "captives":
+			players[p]["captives"] -= int(pl[r])
+		else:
+			lose(p, r, int(pl[r]))
+
+
+## Costo di una meraviglia con gli sconti dell'espansione (Grande architetto, Serse, Qin, Nabucodonosor).
+func wonder_cost(p: int, c: Dictionary, w: String) -> Dictionary:
+	var cost: Dictionary = D.WONDERS[w]["cost"].duplicate()
+	if not exp:
+		return cost
+	cost["culture"] = maxi(0, cost["culture"] - int(players[p].get("architect", 0)))
+	var here := not c.is_empty() and leader_at(p, c["h"])
+	if here and ((lcode(p) == "l14" and w == "great_wall") or (lcode(p) == "l06" and w == "great_gardens")):
+		cost["culture"] = maxi(0, cost["culture"] - 2)
+	if here and lcode(p) == "l36":
+		var left := 2
+		var cut := mini(left, cost["culture"])
+		cost["culture"] -= cut
+		left -= cut
+		while left > 0:
+			var big := "ore"
+			for r in ["wood", "food"]:
+				if cost[r] > cost[big]:
+					big = r
+			if cost[big] <= 0:
+				break
+			cost[big] -= 1
+			left -= 1
+	return cost
+
+
+# ------------------------------------------------------------------ influenza estesa
+
+## Fonti dell'Influenza: [{"from": id, "h": casella, "range": portata, "self_only": bool, "label"}].
+## id >= 0: città; id < 0: Colono (Proselitismo), -(id unità).
+func influence_sources_exp(p: int) -> Array:
+	var out := []
+	for c in cities_of(p):
+		var rng_c := city_size(c)
+		if leader_is(p, "l16") and leader_at(p, c["h"]):
+			rng_c += 1
+		if civ_adv(p, "Proselytism"):
+			rng_c += land_units_at(c["h"], p).filter(func(u): return u["t"] == "settler").size()
+		out.append({"from": c["id"], "h": c["h"], "range": rng_c, "self_only": is_influenced(c), "label": "tua città di dim. %d" % city_size(c)})
+	if civ_adv(p, "Hellenization"):
+		for id in cities:
+			var c2: Dictionary = cities[id]
+			if c2["o"] >= 0 and c2["o"] != p and c2["b"].values().has(p):
+				out.append({"from": c2["id"], "h": c2["h"], "range": city_size(c2), "self_only": false, "label": "città ellenizzata di %s" % pname(c2["o"])})
+	if civ_adv(p, "Proselytism"):
+		for u in units_of(p, "settler"):
+			if u["on"] == -1 and city_at(u["h"]).is_empty():
+				var extra := land_units_at(u["h"], p).filter(func(v): return v["t"] == "settler").size() - 1
+				out.append({"from": -int(u["id"]), "h": u["h"], "range": 2 + extra, "self_only": false, "label": "Colono missionario"})
+	return out

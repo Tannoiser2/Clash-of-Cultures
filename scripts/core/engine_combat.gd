@@ -82,8 +82,19 @@ func group_info(p: int, ids: Array) -> Dictionary:
 		var u: Dictionary = units[uid]
 		if u["o"] != p:
 			return {}
-		if mv_flag(uid, "battled") or mv_flag(uid, "stop") or T.get("mv_this", {}).has(uid):
+		var battled: bool = mv_flag(uid, "battled") and not (u["t"] == "ship" and civ_adv(p, "Longships"))
+		if battled or mv_flag(uid, "stop") or T.get("mv_this", {}).has(uid):
 			return {}
+		match T.get("move_only", ""):
+			"ships":
+				if u["t"] != "ship" or mv_flag(uid, "moved"):
+					return {}
+			"settlers":
+				if u["t"] != "settler" or city_at(u["h"]).get("o", -9) != p:
+					return {}
+			"cavalry":
+				if u["t"] != "cavalry" or u["h"] != T.get("move_only_h", ""):
+					return {}
 		var k2 := "ship" if u["t"] == "ship" else ("cargo" if u["on"] != -1 else "land")
 		if h == "":
 			h = u["h"]
@@ -159,6 +170,12 @@ func move_targets(p: int, ids: Array) -> Dictionary:
 				continue
 			var battle := _enemy_ship(k, p)
 			out[k] = {"kind": "sea", "battle": battle, "nav": reach[k] is String}
+		# Arte navale: le navi sbarcano trasformandosi in Fanteria o Coloni
+		if civ_adv(p, "Shipcraft"):
+			for x in neighbors(h):
+				if is_land(x) and not has_enemy(x, p) and supply_left(p, "infantry") >= ids.size() \
+						and armies_at(x, p).size() + ids.size() <= 4 and not out.has(x):
+					out[x] = {"kind": "unship", "battle": false}
 		# esplorazione con le navi
 		var seen_r := {}
 		for k in reach:
@@ -181,6 +198,9 @@ func move_targets(p: int, ids: Array) -> Dictionary:
 		if is_sea(x):
 			if g["kind"] == "land" and not _enemy_ship(x, p) and _ship_room(x, p) >= ids.size():
 				out[x] = {"kind": "embark", "battle": false}
+			elif g["kind"] == "land" and civ_adv(p, "Shipcraft") and ships_at(x).is_empty() \
+					and ids.all(func(i): return units[int(i)]["t"] in ["infantry", "settler"]) and supply_left(p, "ship") >= ids.size():
+				out[x] = {"kind": "shipcraft", "battle": false}
 			continue
 		var r := _land_dest(p, x, ids, n_army, army, forest, plains)
 		if not r.is_empty():
@@ -209,6 +229,26 @@ func move_targets(p: int, ids: Array) -> Dictionary:
 					out[y] = r2
 				elif not out[y].has("roads"):
 					out[y]["roads_opt"] = true
+		# Strade imperiali (Roma): fino a 4 caselle fra due città romane
+		if from_city and civ_adv(p, "Imperial Roads"):
+			var seen2 := {h: 0}
+			var q2 := [h]
+			while not q2.is_empty():
+				var x2: String = q2.pop_front()
+				var d2: int = seen2[x2]
+				if d2 >= 4:
+					continue
+				for y2 in neighbors(x2):
+					if seen2.has(y2) or not is_land(y2) or has_enemy(y2, p):
+						continue
+					seen2[y2] = d2 + 1
+					q2.append(y2)
+					if d2 + 1 >= 3 and city_at(y2).get("o", -9) == p and not out.has(y2):
+						var r3 := _land_dest(p, y2, ids, n_army, army, false, false)
+						if not r3.is_empty():
+							r3["kind"] = "land"
+							r3["roads"] = true
+							out[y2] = r3
 	return out
 
 
@@ -225,24 +265,29 @@ func _land_dest(p: int, x: String, ids: Array, n_army: int, army: bool, forest: 
 			owner = enemy_units_at(x, p)[0]["o"]
 		if not can_attack(p, owner):
 			return {}
+		if not c.is_empty() and int(c.get("cleo", 0)) > res(p, "culture"):
+			return {}
 		if plains and not c.is_empty() and "great_gardens" in c["w"]:
 			return {}
 		for u in enemy_units_at(x, p):
 			if u["o"] != owner:
 				return {}
 		return {"battle": true, "target": owner}
-	if armies_at(x, p).size() + n_army > 4:
+	var lim := 4
+	if exp and (lcode(p) == "l36") and (leader_at(p, x) or ids.any(func(i): return units[int(i)]["t"] == "leader")):
+		lim = 5
+	if armies_at(x, p).size() + n_army > lim:
 		return {}
 	return {"battle": false}
 
 
 ## Azione Muovi: fino a 3 gruppi.
-func do_move_action(p: int, free := false) -> void:
+func do_move_action(p: int, free := false, max_groups := 3) -> void:
 	spend_action(free)
 	T["mv_this"] = {}
 	T["ships_moved"] = false
 	T["nav_used"] = false
-	var left := 3
+	var left := max_groups
 	while left > 0 and not game_over:
 		var r = await ask(p, {"type": "move", "left": left})
 		if not (r is Dictionary) or r.get("done", false):
@@ -259,6 +304,10 @@ func do_move_action(p: int, free := false) -> void:
 		await move_group(p, ids, to, tg[to], roads)
 		left -= 1
 		changed.emit()
+	if T.get("move_only", "") == "ships":
+		# Annone: le navi mosse non muovono più in questo turno
+		for uid in T["mv_this"]:
+			set_mv(uid, "stop")
 	T.erase("mv_this")
 	if has_adv(p, "Cartography") and T.get("ships_moved", false):
 		gain(p, "idea", 1)
@@ -349,6 +398,30 @@ func move_group(p: int, ids: Array, to: String, info: Dictionary, roads := false
 				await land_battle(p, grp, to, from, info["kind"] == "disembark")
 			else:
 				log_msg("%s muove %d %s." % [pname(p), grp.size(), "unità"])
+			# Akbar: +1 Oro quando entra in una tua città
+			if leader_is(p, "l25") and leader_at(p, to) and city_at(to).get("o", -9) == p and grp.any(func(u): return u["t"] == "leader"):
+				gain(p, "gold", 1)
+		"shipcraft":
+			# Arte navale (Vichinghi): Fanteria e Coloni diventano Navi
+			for u in grp:
+				u["t"] = "ship"
+				u["h"] = to
+				u["on"] = -1
+				set_mv(u["id"], "stop")
+			log_msg("%s trasforma %d unità in navi." % [pname(p), grp.size()])
+		"unship":
+			var tt := "infantry"
+			if supply_left(p, "settler") >= grp.size() and await choose(p, "Arte navale: le navi diventano…", ["Fanteria", "Coloni"], {"force": true}) == 1:
+				tt = "settler"
+			for u in grp:
+				for cg in carried(u["id"]):
+					cg["on"] = -1
+					cg["h"] = to
+					set_mv(cg["id"], "stop")
+				u["t"] = tt
+				u["h"] = to
+				set_mv(u["id"], "stop")
+			log_msg("%s porta a terra %d navi." % [pname(p), grp.size()])
 	changed.emit()
 
 
@@ -540,6 +613,16 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 			eclipse = false
 			one_round = true
 			log_msg("Eclissi solare: la battaglia dura un solo round.")
+		# Cleopatra: per attaccare la sua città bisogna prima togliere la sua Cultura
+		if not c.is_empty() and int(c.get("cleo", 0)) > 0 and c["o"] == defender:
+			lose(p, "culture", int(c["cleo"]))
+			log_msg("%s paga %d Cultura per attaccare la città di Cleopatra." % [pname(p), c["cleo"]])
+			c.erase("cleo")
+	bt["spent"] = {}
+	# Viriato: un giocatore può giocare carte per i Barbari entro 2 caselle da lui
+	var barb_cards := -1
+	if exp and defender == -1:
+		barb_cards = _viriato_near(h, p)
 	while true:
 		bt["round"] += 1
 		var rnd: int = bt["round"]
@@ -549,13 +632,20 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 		var att_kinds := "A"
 		var def_kinds: String = ("A" if not _fighters(bt, "def").is_empty() else "") + ("F" if fortress else "")
 		var ca := ""
-		if not (civ_adv(defender, "Spartans") and Dd.size() < A.size()):
+		var xa := _xerxes_full(A, p)
+		var xd := _xerxes_full(Dd, defender)
+		if not (civ_adv(defender, "Spartans") and Dd.size() < A.size()) and not xa:
 			ca = await _pick_tactic(p, att_kinds, true, false, city_def, bt)
 		var cd := ""
-		var def_no_cards: bool = (trojan_used and rnd == 1) or (rnd == 1 and leader_is(p, "l23") and city_def and _leader_in(A, p))
+		var def_no_cards: bool = (trojan_used and rnd == 1) or (rnd == 1 and leader_is(p, "l23") and city_def and _leader_in(A, p)) or xd
 		if defender >= 0 and not def_no_cards:
 			cd = await _pick_tactic(defender, def_kinds, false, city_def, false, bt)
+		elif barb_cards >= 0:
+			cd = await _pick_tactic(barb_cards, def_kinds, false, city_def, false, bt)
 		var eff := {p: ca, defender: cd}
+		for side in eff:
+			if eff[side] != "":
+				bt["spent"][side] = bt["spent"].get(side, []) + [eff[side]]
 		for side in eff:
 			if eff[side] != "":
 				log_msg("%s gioca la tattica %s." % [pname(side), D.tactic(D.action_card(eff[side])[2])["it"]])
@@ -563,6 +653,13 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 		for side in eff:
 			if eff[side] != "":
 				tac[side] = D.action_card(eff[side])[2]
+		# Ciro il Grande: può ignorare l'effetto della sua carta per +2
+		var cyrus := {p: 0, defender: 0}
+		for side in [p, defender]:
+			if exp and tac[side] != "" and lcode(side) == "l34" and _leader_in(A if side == p else Dd, side):
+				if await yes_no(side, "Ciro il Grande, stratega: ignori l'effetto della tua tattica per +2?"):
+					tac[side] = "_"
+					cyrus[side] = 2
 		# esploratori avanzati: annulla e prende la carta nemica
 		for side in [p, defender]:
 			var other: int = defender if side == p else p
@@ -625,6 +722,26 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 				break
 		A = _fighters(bt, "att")
 		Dd = _fighters(bt, "def")
+		# Viriato, terrore: dal 2° round sposta un'unità nemica (2 Umore)
+		if exp and rnd >= 2:
+			for side in [p, defender]:
+				var mine_v: Array = A if side == p else Dd
+				var foe_v: Array = Dd if side == p else A
+				if lcode(side) == "l12" and _leader_in(mine_v, side) and res(side, "mood") >= 2 and foe_v.size() > 1:
+					var spot := ""
+					for x in neighbors(h):
+						if is_land(x) and city_at(x).is_empty() and units_at(x).is_empty():
+							spot = x
+					var victim := {}
+					for u in foe_v:
+						if u["t"] != "leader":
+							victim = u
+					if spot != "" and not victim.is_empty() and await yes_no(side, "Viriato, terrore: paghi 2 Umore per cacciare un'unità nemica dalla battaglia?"):
+						lose(side, "mood", 2)
+						victim["h"] = spot
+						log_msg("Il terrore di Viriato mette in fuga un'unità di %s." % pname(victim["o"]))
+			A = _fighters(bt, "att")
+			Dd = _fighters(bt, "def")
 		# tiri
 		var dice_a := A.size()
 		var dice_d := Dd.size()
@@ -642,13 +759,16 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 			if await yes_no(defender, "Assedio: paghi 2 Cibo per poter attivare le abilità di scontro?"):
 				pay(defender, {"food": 2})
 				no_clash_on_def = false
-		var ra := _roll(A, dice_a - A.size(), not no_clash_on_att)
-		var rd := _roll(Dd, dice_d - Dd.size(), not no_clash_on_def, _cav_bonus(defender, Dd, rnd, fortress))
+		var ra := _roll(A, dice_a - A.size(), not no_clash_on_att and not xa)
+		var rd := _roll(Dd, dice_d - Dd.size(), not no_clash_on_def and not xd, _cav_bonus(defender, Dd, rnd, fortress))
+		if exp and rnd == 1:
+			_attila(ra, A, p)
+			_attila(rd, Dd, defender)
 		var cva: int = ra["cv"]
 		var cvd: int = rd["cv"]
 		if exp:
-			cva += _exp_cv(bt, p, defender, A, Dd, rnd, true, ca != "")
-			cvd += _exp_cv(bt, defender, p, Dd, A, rnd, false, cd != "")
+			cva += _exp_cv(bt, p, defender, A, Dd, rnd, true, ca != "") + cyrus[p] + await _immortals(p, A)
+			cvd += _exp_cv(bt, defender, p, Dd, A, rnd, false, cd != "") + cyrus[defender] + await _immortals(defender, Dd)
 			if fortress and leader_is(defender, "l29") and hdist(leader_unit(defender)["h"], h) <= 2:
 				cvd += 2
 		cva += steel[p] + (2 if tac[p] == "high_morale" else 0) + (1 if tac[p] == "tactical_surprise" else 0)
@@ -684,6 +804,12 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 							cva += 1
 						else:
 							cvd += 1
+		if exp and rnd == 1:
+			# Annibale ed Elefanti persiani: nel 1° round il nemico ha al massimo +2
+			if _caps_enemy(Dd, defender):
+				cva = mini(cva, _raw(ra) + 2)
+			if _caps_enemy(A, p):
+				cvd = mini(cvd, _raw(rd) + 2)
 		cva = maxi(0, cva)
 		cvd = maxi(0, cvd)
 		var hits_a := cva / 5
@@ -736,6 +862,15 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 			att_won = true
 			break
 		var must_retreat := false
+		# Didone: sopravvissuta a un round, si sacrifica e costringe l'attaccante a ritirarsi
+		if exp and lcode(defender) == "l09" and _leader_in(Dd, defender) and city_def:
+			if await yes_no(defender, "Regina Didone: si sacrifica per costringere %s alla ritirata?" % pname(p)):
+				var lu := leader_unit(defender)
+				var lh: String = lu["h"]
+				remove_unit(lu)
+				new_unit(defender, "infantry", lh)
+				must_retreat = true
+				log_msg("Il sacrificio di Didone respinge %s." % pname(p))
 		if one_round:
 			must_retreat = true
 			players[defender]["vp_extra"] += 1.0
@@ -984,7 +1119,68 @@ func _exp_cancel(bt: Dictionary, me: int, mine: Array, rnd: int, attacker: bool,
 	return k
 
 
+## Giocatore (diverso da exclude) con Viriato entro 2 caselle: gioca le carte per i Barbari.
+func _viriato_near(h: String, exclude: int) -> int:
+	for q in n:
+		if q != exclude and lcode(q) == "l12" and hdist(leader_unit(q)["h"], h) <= 2:
+			return q
+	return -1
+
+
+## Serse: con 5 unità d'armata il suo esercito non gioca carte né attiva abilità di scontro.
+func _xerxes_full(lst: Array, side: int) -> bool:
+	return exp and side >= 0 and lcode(side) == "l36" and _leader_in(lst, side) and lst.size() >= 5
+
+
+## Attila, signore dei cavalli: nel 1° round una Cavalleria attivata può fare da Elefante.
+func _attila(r: Dictionary, lst: Array, side: int) -> void:
+	if side < 0 or lcode(side) != "l22" or not _leader_in(lst, side):
+		return
+	for d in r["dice"]:
+		if d[1] == "C" and d[2] and int(d[0]) + 2 < 5:
+			r["cv"] -= int(d[0]) + 2
+			r["cancel"] += 1
+			d[1] = "E"
+			return
+
+
+## Immortali (Persia): prima del tiro +1 per ogni Cultura spesa (fino a 4).
+func _immortals(side: int, lst: Array) -> int:
+	if side < 0 or not civ_adv(side, "Immortals") or res(side, "culture") <= 0 or lst.is_empty():
+		return 0
+	var mx := mini(4, res(side, "culture"))
+	var labels := []
+	for i in mx + 1:
+		labels.append("Nessuna" if i == 0 else "%d Cultura (+%d)" % [i, i])
+	var k := await choose(side, "Immortali: quanta Cultura spendi in questo round?", labels, {"force": true})
+	lose(side, "culture", k)
+	return k
+
+
+func _caps_enemy(lst: Array, side: int) -> bool:
+	if side < 0:
+		return false
+	if lcode(side) == "l07" and _leader_in(lst, side):
+		return true
+	return civ_adv(side, "Elephants") and lst.any(func(u): return u["t"] == "elephant")
+
+
+func _raw(r: Dictionary) -> int:
+	var t := 0
+	for d in r["dice"]:
+		t += int(d[0])
+	return t
+
+
 func _after_battle_exp(bt: Dictionary, p: int, q: int, att_won: bool, def_won: bool, killed: Dictionary, att_army: Array, def_army: Array) -> void:
+	# Jimmu: sopravvissuto, per 1 Cultura riprende una carta Azione spesa nella battaglia
+	for side in [p, q]:
+		if side >= 0 and lcode(side) == "l29" and _leader_in(att_army if side == p else def_army, side) and res(side, "culture") >= 1:
+			var spent: Array = bt.get("spent", {}).get(side, [])
+			if not spent.is_empty() and await yes_no(side, "Imperatore Jimmu: paghi 1 Cultura per riprendere la carta «%s»?" % D.card_title(spent[-1])):
+				lose(side, "culture", 1)
+				discards["action"].erase(spent[-1])
+				players[side]["hand"].append(spent[-1])
 	var winner := p if att_won else (q if def_won else -9)
 	for side in [p, q]:
 		if side < 0:
@@ -1245,8 +1441,8 @@ func capture_city(p: int, c: Dictionary, att: Array, from_ship: bool, fought: bo
 			was_influenced = true
 	c["o"] = p
 	for b in c["b"].keys():
-		if b == "obelisk":
-			continue    # l'Obelisco resta del suo colore
+		if b == "obelisk" or (b == "port" and civ_adv(c["b"][b], "City Independence")):
+			continue    # l'Obelisco (e i porti fenici) restano del loro colore
 		if c["b"][b] == q:
 			if supply_left(p, b) > 0:
 				c["b"][b] = p
@@ -1281,6 +1477,35 @@ func capture_city(p: int, c: Dictionary, att: Array, from_ship: bool, fought: bo
 ## Effetti dell'espansione dopo una conquista.
 func _capture_exp(p: int, c: Dictionary, q: int, att: Array, size: int, _infl: bool) -> void:
 	var led := _leader_in(att, p)
+	c.erase("druid")
+	c.erase("cleo")
+	# Nabopolassar: dopo aver perso una città, una Fanteria gratis con lui
+	if q >= 0 and lcode(q) == "l05" and supply_left(q, "infantry") > 0:
+		var lu := leader_unit(q)
+		var where: String = lu["h"]
+		if lu["on"] != -1 or armies_at(where, q).size() >= stack_limit(q, where):
+			var cs := cities_of(q)
+			where = cs[0]["h"] if not cs.is_empty() else ""
+		if where != "":
+			new_unit(q, "infantry", where)
+			log_msg("Nabopolassar chiama alla rivolta: una Fanteria per %s." % pname(q))
+	# Wak Chanil Ajaw: ricostruisce un edificio diverso al posto di uno suo
+	if led and lcode(p) == "l33":
+		var mine: Array = c["b"].keys().filter(func(b): return c["b"][b] == p)
+		var others: Array = bld_list().filter(func(b): return not c["b"].has(b) and has_adv(p, D.B_REQ[b]) and supply_left(p, b) > 0 and (b != "port" or is_coastal(c)))
+		if not mine.is_empty() and not others.is_empty():
+			var labels := ["No"]
+			var pairs := []
+			for a in mine:
+				for b2 in others:
+					labels.append("%s → %s" % [D.B_NAME[a], D.B_NAME[b2]])
+					pairs.append([a, b2])
+			var j := await choose(p, "Ricostruzione: sostituisci un edificio?", labels, {"force": true})
+			if j > 0:
+				c["b"].erase(pairs[j - 1][0])
+				c["b"][pairs[j - 1][1]] = p
+				if pairs[j - 1][1] == "port":
+					c["port"] = adjacent_sea(c["h"])[0]
 	if civ_adv(p, "Stelas"):
 		gain(p, "culture", 1)
 	if civ_adv(p, "Provinces") and c["mood"] == 0:
@@ -1370,12 +1595,20 @@ func barbarian_attack(barb: Array, h: String) -> void:
 		var dk: String = ("A" if not _fighters(bt, "def").is_empty() else "") + ("F" if fortress else "")
 		var cd := await _pick_tactic(q, dk, false, not c.is_empty(), false, bt)
 		var tq: String = D.action_card(cd)[2] if cd != "" else ""
+		# Viriato: un altro giocatore vicino gioca una tattica per i Barbari
+		var vq := _viriato_near(h, q) if exp else -1
+		var cb := ""
+		if vq >= 0:
+			cb = await _pick_tactic(vq, "A", true, false, not c.is_empty(), bt)
+		var tb: String = D.action_card(cb)[2] if cb != "" else ""
+		if cb != "":
+			discard("action", cb, vq)
 		var A := _fighters(bt, "att")
 		var Dd := _fighters(bt, "def")
 		var dd := Dd.size() + (1 if bt["round"] == 1 and fortress else 0) + (1 if tq in ["prepared_defenses", "for_the_people"] else 0)
 		var ra := _roll(A, 0, tq != "high_ground")
 		var rd := _roll(Dd, dd - Dd.size(), true, _cav_bonus(q, Dd, bt["round"], fortress))
-		var cva: int = ra["cv"] - (A.size() if tq == "defiant_stand" else 0)
+		var cva: int = ra["cv"] - (A.size() if tq == "defiant_stand" else 0) + (2 if tb == "high_morale" else 0) + (Dd.size() if tb == "wedge" else 0) + (1 if tb == "tactical_surprise" else 0)
 		var cvd: int = rd["cv"] + (2 if tq == "high_morale" else 0) + (1 if tq == "tactical_surprise" else 0)
 		if exp:
 			cvd += _exp_cv(bt, q, -1, Dd, A, bt["round"], false, cd != "")

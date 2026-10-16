@@ -186,10 +186,16 @@ func log_msg(t: String) -> void:
 	log_added.emit(t)
 
 
+const MAN_GOD := {"Nationalism": "Dogma", "Totalitarianism": "Devotion", "Absolute Power": "Conversion", "Forced Labor": "Fanaticism"}
+
+
 func has_adv(p: int, a: String) -> bool:
 	if p < 0:
 		return false
 	if players[p]["adv"].has(a):
+		return true
+	# Uomo-dio (Egitto): ogni avanzamento di Teocrazia dà anche il potere di quello di Autocrazia alla sua sinistra
+	if exp and MAN_GOD.has(a) and players[p]["adv"].has("Man God") and players[p]["adv"].has(MAN_GOD[a]):
 		return true
 	# Grande Biblioteca: un avanzamento dichiarato per il turno
 	if cur == p and T.get("library", "") == a:
@@ -474,6 +480,10 @@ func leader_gone(p: int, killer := -9) -> void:
 		log_msg("%s, capo di %s, lascia la scena." % [CivData.LEADERS[code][0], pname(p)])
 	if civ_adv(p, "Embalming"):
 		gain(p, "culture", 1)
+	# la Cultura di Cleopatra se ne va con lei
+	for id in cities:
+		if cities[id]["o"] == p:
+			cities[id].erase("cleo")
 
 
 
@@ -585,6 +595,10 @@ func score(p: int) -> Dictionary:
 		ev += players[p].get("killed_leaders", []).size() * 2.0
 		ev += players[p].get("captives", 0) * 0.5
 		ev += float(players[p].get("anarchy", 0))
+		ev += float(players[p].get("erik", []).size())
+		for id in cities:
+			if cities[id].get("druid", -9) == p:
+				ev += 1.0
 		if civ_adv(p, "City Independence"):
 			for id in cities:
 				if cities[id]["b"].get("port", -9) == p:
@@ -638,6 +652,32 @@ func pirate_blocked(k: String, p: int) -> bool:
 
 func pirates() -> Array:
 	return units_of(-2, "ship")
+
+
+# ------------------------------------------------------------------ capi: dove sono
+
+## La città (tua) in cui si trova il tuo Capo, se non è a bordo di una nave.
+func leader_city(p: int) -> Dictionary:
+	var lu := leader_unit(p)
+	if lu.is_empty() or lu["on"] != -1:
+		return {}
+	var c := city_at(lu["h"])
+	if c.is_empty() or c["o"] != p:
+		return {}
+	return c
+
+
+func lcode(p: int) -> String:
+	if not exp or p < 0 or leader_unit(p).is_empty():
+		return ""
+	return players[p].get("leader", "")
+
+
+## Limite di accatastamento: 4 unità d'armata, 5 con Serse.
+func stack_limit(p: int, k: String) -> int:
+	if lcode(p) == "l36" and leader_at(p, k):
+		return 5
+	return 4
 
 
 # ------------------------------------------------------------------ mazzi
@@ -696,7 +736,28 @@ func draw_objective(p: int, k := 1) -> void:
 
 func draw_wonder(p: int) -> void:
 	var c := ""
-	if not table_wonders.is_empty():
+	# Qin Shi Huang e Nabucodonosor II: devono prendere la loro Meraviglia, ovunque sia
+	var want: String = {"l14": "great_wall", "l06": "great_gardens"}.get(lcode(p), "")
+	if want != "" and not players[p]["won"].has(want) and wonder_city(want).is_empty():
+		if decks["wonder"].has(want):
+			decks["wonder"].erase(want)
+			shuffle(decks["wonder"])
+			c = want
+		elif discards["wonder"].has(want):
+			discards["wonder"].erase(want)
+			c = want
+		else:
+			for q in n:
+				if q != p and players[q]["won"].has(want):
+					players[q]["won"].erase(want)
+					c = want
+					var rep_c := draw("wonder", q)
+					if rep_c != "":
+						players[q]["won"].append(rep_c)
+					break
+	if c != "":
+		pass
+	elif not table_wonders.is_empty():
 		# E40: la Meraviglia scoperta sul tavolo
 		c = table_wonders.pop_front()
 	else:
@@ -792,6 +853,14 @@ func check_now(_p: int, _what: String, _data: Dictionary) -> void:
 
 func sea_reach(_h: String, _p: int, _nav := false) -> Dictionary:
 	return {}
+
+
+func land_battle(_p: int, _att: Array, _h: String, _from: String, _from_ship: bool) -> Dictionary:
+	return {}
+
+
+func do_move_action(_p: int, _free := false, _max_groups := 3) -> void:
+	pass
 
 
 func naval_battle(_p: int, _ships: Array, _h: String, _from: String) -> Dictionary:

@@ -51,7 +51,7 @@ Ogni giocatore riceve a caso una delle 15 civiltà. I suoi 4 avanzamenti di civi
 • Nuovi edifici: Mercato (Baratto: Cavalleria ed Elefanti, 1 Oro quando un avversario usa le Rotte commerciali verso tue città con Mercato), Obelisco (Arti: immune all'Influenza, resta tuo anche se la città cade), Osservatorio (Matematica: peschi una carta Azione).
 • Pirati: con l'icona dell'evento compaiono 2 navi nere e razziano le città vicine (1 risorsa, Umore o Cultura). Bloccano raccolta e rotte nel loro mare e in quelli accanto; affondarle dà 1 Oro e 1 Umore o Cultura ciascuna.
 • I Barbari possono ricevere Cavalleria ed Elefanti come rinforzi; 20 eventi e 6 obiettivi in più.
-Alcune abilità di Capi e civiltà (segnate «non automatica» nella plancia) sono solo descritte.
+• Tutte le abilità di civiltà e dei Capi sono applicate: quelle che si usano a richiesta sono nel pulsante «Speciali»; Campi da pelota e Shogunato compaiono come caselle nelle finestre di raccolta e reclutamento; Pace e poesia si usa da sola quando manca il Cibo per un avanzamento.
 
 [b]Cosa manca[/b]
 Gli scambi liberi fra giocatori non sono gestiti. Nell'espansione non ci sono le varianti «Capi casuali» e «Storia alternativa»."""

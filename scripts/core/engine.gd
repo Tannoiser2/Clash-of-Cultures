@@ -1,5 +1,5 @@
 class_name CocEngine
-extends "res://scripts/core/engine_combat.gd"
+extends "res://scripts/core/engine_civ.gd"
 ## Motore delle regole di Clash of Cultures: Monumental Edition (gioco base).
 ## Ogni scelta passa da ask(): l'IA risponde subito, per le persone si emette decision_requested
 ## e si attende provide_decision(); online le scelte passano dal registro delle mosse.
@@ -93,6 +93,9 @@ func _trade_income(p: int) -> void:
 	var k: int = tr["count"]
 	if k <= 0:
 		return
+	if exp:
+		await trade_bonus(p, tr)
+		k = await trade_alt(p, k)
 	var food := mini(k, maxi(0, food_limit(p) - res(p, "food")))
 	var gold := 0
 	if has_adv(p, "Currency"):
@@ -123,9 +126,15 @@ func apply_move(p: int, m: Dictionary) -> bool:
 		"advance":
 			if not main_ok(p) or not can_buy_adv(p, m.get("a", "")):
 				return false
-			if not can_pay(p, {"food": adv_food_cost(p, m["a"])}, ["idea"]):
+			# Pace e poesia (India): una volta per turno 1 Umore invece del Cibo
+			var pp: bool = m.get("pp", false) and civ_adv(p, "Peace & Poetry") and not T.get("pp", false) and res(p, "mood") >= 1
+			if not pp and not can_pay(p, {"food": adv_food_cost(p, m["a"])}, ["idea"]):
 				return false
 			spend_action(false)
+			if pp:
+				T["pp"] = true
+				lose(p, "mood", 1)
+				return await do_advance(p, m["a"], true)
 			return await do_advance(p, m["a"])
 		"found":
 			if not main_ok(p):
@@ -141,7 +150,10 @@ func apply_move(p: int, m: Dictionary) -> bool:
 		"collect":
 			if not main_ok(p):
 				return false
-			return await do_collect(p, int(m.get("c", -1)), m.get("picks", []), m.get("card", ""), m.get("metal", false))
+			var bc := _ballcourt(p, m)
+			var okc: bool = await do_collect(p, int(m.get("c", -1)), m.get("picks", []), m.get("card", ""), m.get("metal", false))
+			_ballcourt_end(p, bc, okc)
+			return okc
 		"build":
 			if not main_ok(p):
 				return false
@@ -149,7 +161,12 @@ func apply_move(p: int, m: Dictionary) -> bool:
 		"recruit":
 			if not main_ok(p):
 				return false
-			return await do_recruit(p, int(m.get("c", -1)), m.get("comp", {}), m.get("sanit", false), m.get("draft", false))
+			var bc2 := _ballcourt(p, m)
+			T["shogun_req"] = m.get("shogun", false)
+			var okr: bool = await do_recruit(p, int(m.get("c", -1)), m.get("comp", {}), m.get("sanit", false), m.get("draft", false))
+			T.erase("shogun_req")
+			_ballcourt_end(p, bc2, okr)
+			return okr
 		"wonder":
 			if not main_ok(p):
 				return false
@@ -174,6 +191,20 @@ func apply_move(p: int, m: Dictionary) -> bool:
 	return false
 
 
+## Ballcourts (Maya): con «bc» la città conta 1 in più pagando 1 Umore (solo se l'azione riesce).
+func _ballcourt(p: int, m: Dictionary) -> bool:
+	if not m.get("bc", false) or not civ_adv(p, "Ballcourts") or res(p, "mood") < 1:
+		return false
+	T["bc_city"] = int(m.get("c", -1))
+	return true
+
+
+func _ballcourt_end(p: int, used: bool, ok: bool) -> void:
+	T.erase("bc_city")
+	if used and ok:
+		lose(p, "mood", 1)
+
+
 # ------------------------------------------------------------------ azioni gratuite e speciali
 
 ## Elenco delle azioni speciali disponibili ora (per l'interfaccia e l'IA).
@@ -184,7 +215,7 @@ func free_options(p: int) -> Array:
 		out.append("voting")
 	if has_adv(p, "Economic Liberty") and res(p, "mood") >= 1 and T["collects"] == 0:
 		out.append("econlib")
-	if has_adv(p, "Arts") and not T["arts"] and res(p, "culture") >= 1 and not T["infl_ok"]:
+	if has_adv(p, "Arts") and not T["arts"] and (res(p, "culture") >= 1 or (civ_adv(p, "Hellenization") and res(p, "mood") >= 2)) and not T["infl_ok"]:
 		out.append("arts")
 	if has_adv(p, "Drama & Music") and not T["drama"] and (res(p, "mood") > 0 or res(p, "culture") > 0):
 		out.append("drama")
@@ -204,7 +235,12 @@ func free_options(p: int) -> Array:
 		out.append("statue")
 	if owns_wonder(p, "great_library") and T["library"] == "":
 		out.append("library")
+	out += exp_specials(p)
 	return out
+
+
+func free_name(w: String) -> String:
+	return FREE_NAME.get(w, XNAME.get(w, w))
 
 
 const FREE_NAME := {"voting": "Voto: Aumenta la felicità (1 Umore)", "econlib": "Libertà economica: raccolta (1 Umore)",
@@ -219,6 +255,8 @@ func free_action(p: int, m: Dictionary) -> bool:
 	var w: String = m.get("what", "")
 	if not w in free_options(p):
 		return false
+	if w.begins_with("x_"):
+		return await exp_special(p, w, m)
 	match w:
 		"voting":
 			var steps: Dictionary = m.get("steps", {})
@@ -244,10 +282,12 @@ func free_action(p: int, m: Dictionary) -> bool:
 			return ok_c
 		"arts":
 			T["arts"] = true
-			lose(p, "culture", 1)
+			var arts_r := "culture" if res(p, "culture") >= 1 else "mood"
+			var arts_k := 1 if arts_r == "culture" else 2
+			lose(p, arts_r, arts_k)
 			var ok_i: bool = await do_influence(p, int(m.get("from", -1)), int(m.get("to", -1)), m.get("b", ""), true)
 			if not ok_i:
-				gain(p, "culture", 1)
+				gain(p, arts_r, arts_k)
 				T["arts"] = false
 			return ok_i
 		"drama":
@@ -390,7 +430,9 @@ func _card_useful(p: int, k: String) -> bool:
 		"cultural_awe":
 			for c in cities_of(-1):
 				if city_size(c) == 1:
-					return true
+					for src in cities_of(p):
+						if dist_revealed(src["h"], c["h"]) <= city_size(src) + res(p, "culture"):
+							return true
 			return false
 		"militia":
 			return supply_left(p, "infantry") > 0
@@ -409,6 +451,8 @@ func card_kind(id: String) -> String:
 func _card_ok(p: int, id: String, k: String) -> bool:
 	var cul := res(p, "culture")
 	var acts: int = T["actions"]
+	if civ_adv(p, "Shogunate") and not T.get("shogun_c", false):
+		acts += 1
 	match k:
 		"advance":
 			return cul >= 1
@@ -481,30 +525,6 @@ func _use_card(p: int, id: String, cost := 0) -> void:
 	fx.emit("card", {"p": p, "id": id})
 
 
-func _choose_city(p: int, title: String, cs: Array) -> Dictionary:
-	if cs.is_empty():
-		return {}
-	var keys := []
-	for c in cs:
-		keys.append(c["h"])
-	var k := await choose_hex(p, title, keys)
-	return city_at(k)
-
-
-func _choose_adv(p: int, title: String, lst: Array) -> String:
-	if lst.is_empty():
-		return ""
-	var i := await choose(p, title, lst.map(func(a): return "%s (%s)" % [D.adv_it(a), D.CAT_NAME[D.adv_info(a)["cat"]]]), {"advances": lst, "force": true})
-	return lst[i]
-
-
-func _choose_player(p: int, title: String, lst: Array) -> int:
-	if lst.is_empty():
-		return -1
-	var i := await choose(p, title, lst.map(func(q): return pname(q)), {"force": true})
-	return lst[i]
-
-
 func play_card(p: int, m: Dictionary) -> bool:
 	var id: String = m.get("id", "")
 	if not players[p]["hand"].has(id):
@@ -512,6 +532,61 @@ func play_card(p: int, m: Dictionary) -> bool:
 	var k := card_kind(id)
 	if not _card_ok(p, id, k):
 		return false
+	var bumped := false
+	if civ_adv(p, "Shogunate") and not T.get("shogun_c", false) and (k in ["spies", "explorers", "new_goals", "city_growth", "tech_synergy", "idea_synergy", "mercenaries", "cultural_awe"] or k.begins_with("gp_")):
+		T["shogun_c"] = true
+		T["free_next"] = true
+		if T["actions"] <= 0:
+			T["actions"] += 1
+			T["free_next"] = false
+			bumped = true
+		log_msg("Shogunato: la carta non costa un'azione.")
+	var acts0: int = T["actions"]
+	# Sotterfugio (Giappone): un avversario vicino può annullare la carta scartandone una
+	if exp and await _subterfuge(p, id):
+		players[p]["hand"].erase(id)
+		discard("event" if id.begins_with("e") else "action", id, p)
+		T["free_next"] = false
+		if bumped:
+			T["actions"] -= 1
+		changed.emit()
+		return true
+	var ok_card: bool = await _play_card_effect(p, id, k)
+	T["free_next"] = false
+	if not ok_card:
+		T.erase("shogun_c")
+		if bumped and T["actions"] == acts0:
+			T["actions"] -= 1
+	return ok_card
+
+
+func _subterfuge(p: int, id: String) -> bool:
+	for q in n:
+		if q == p or not civ_adv(q, "Subterfuge"):
+			continue
+		var cards: Array = players[q]["hand"].filter(func(x): return x.begins_with("a"))
+		if cards.is_empty():
+			continue
+		var near := false
+		var mine := cities_of(q).map(func(c): return c["h"]) + units_of(q).filter(func(u): return is_army(u)).map(func(u): return u["h"])
+		var theirs := cities_of(p).map(func(c): return c["h"]) + units_of(p).map(func(u): return u["h"])
+		for a in mine:
+			for b in theirs:
+				if hdist(a, b) <= 2:
+					near = true
+		if not near:
+			continue
+		var labels := ["Lascia giocare"] + cards.map(func(x): return "Scarta «%s»" % D.card_title(x))
+		var j := await choose(q, "Sotterfugio: %s gioca «%s». Lo annulli?" % [pname(p), D.card_title(id)], labels, {"force": true})
+		if j > 0:
+			players[q]["hand"].erase(cards[j - 1])
+			discard("action", cards[j - 1], q)
+			log_msg("Sotterfugio: %s annulla la carta di %s." % [pname(q), pname(p)])
+			return true
+	return false
+
+
+func _play_card_effect(p: int, id: String, k: String) -> bool:
 	match k:
 		"advance":
 			var lst := []
@@ -941,6 +1016,15 @@ func resolve_event(p: int) -> void:
 	var id := draw("event", p)
 	if id == "":
 		return
+	# Sacrifici umani (Aztechi): un Prigioniero annulla l'evento appena pescato
+	if civ_adv(p, "Human Sacrifice") and int(players[p].get("captives", 0)) > 0:
+		if await yes_no(p, "Sacrifici umani: sacrifichi un Prigioniero per annullare «%s» e pescarne un altro?" % D.EVENTS[id][0]):
+			players[p]["captives"] -= 1
+			discard("event", id, p)
+			log_msg("%s sacrifica un Prigioniero: l'evento «%s» è annullato." % [pname(p), D.EVENTS[id][0]])
+			id = draw("event", p)
+			if id == "":
+				return
 	var e: Array = D.EVENTS[id]
 	log_msg("Evento per %s: %s." % [pname(p), e[0]])
 	fx.emit("event", {"p": p, "id": id})
@@ -983,6 +1067,10 @@ func _exhaust(p: int) -> void:
 ## Peggiora l'umore di una città per un evento (con Miti si può pagare 1 Umore per evitarlo).
 func event_mood(p: int, c: Dictionary, to_angry := false) -> void:
 	if c.is_empty() or c["mood"] == 0:
+		return
+	# Marqzen, signore delle tempeste: annulla il calo d'umore nella sua città
+	if lcode(p) == "l03" and leader_at(p, c["h"]) and c["o"] == p:
+		log_msg("Marqzen protegge la sua città dall'evento.")
 		return
 	if has_adv(p, "Myths") and res(p, "mood") >= 1:
 		if await yes_no(p, "Miti: paghi 1 Umore per evitare che la città peggiori l'umore?"):
@@ -1457,6 +1545,9 @@ func _lose_unit(q: int, title: String) -> void:
 	for u in us:
 		labels.append("%s in %s" % [D.U_NAME[u["t"]], _hex_label(u["h"])])
 	var i := await choose(q, title, labels, {"hexes": us.map(func(u): return u["h"]), "force": true})
+	if lcode(q) == "l03" and leader_at(q, us[i]["h"]) and us[i]["t"] != "leader" and city_at(us[i]["h"]).get("o", -9) == q:
+		log_msg("Marqzen salva l'unità nella sua città.")
+		return
 	remove_unit(us[i])
 
 
@@ -1599,6 +1690,32 @@ func barbarians_move(p: int) -> void:
 	if groups.is_empty():
 		await barbarians_spawn(p, false)
 		return
+	if exp:
+		# Silla: i Barbari entro 2 caselle da lui muovono solo con il suo consenso
+		for q in n:
+			if lcode(q) != "l42":
+				continue
+			var sh: String = leader_unit(q)["h"]
+			for g0 in groups.keys():
+				if hdist(g0, sh) <= 2 and (q == p or not await yes_no(q, "Silla: lasci muovere i Barbari vicini a lui verso %s?" % pname(p))):
+					groups.erase(g0)
+		# Alleati tribali (Celti): 1 Cibo per fermare i Barbari
+		if civ_adv(p, "Tribal Allies") and res(p, "food") >= 1 and not groups.is_empty():
+			if await yes_no(p, "Alleati tribali: paghi 1 Cibo perché i Barbari non si muovano?"):
+				lose(p, "food", 1)
+				groups.clear()
+		# Tribù unne: 1 Oro o 1 Cultura per mandare i Barbari verso le città degli altri
+		if civ_adv(p, "Hunnic Tribes") and (res(p, "gold") >= 1 or res(p, "culture") >= 1) and not groups.is_empty():
+			var others := []
+			for id in cities:
+				if cities[id]["o"] >= 0 and cities[id]["o"] != p:
+					others.append(cities[id]["h"])
+			if not others.is_empty() and await yes_no(p, "Tribù unne: paghi 1 Oro o 1 Cultura per dirigere i Barbari verso gli avversari?"):
+				lose(p, "gold" if res(p, "gold") >= 1 else "culture", 1)
+				mine = others
+		if groups.is_empty():
+			log_msg("I Barbari restano fermi.")
+			return
 	log_msg("I Barbari si muovono verso %s!" % pname(p))
 	for g in groups.keys():
 		var grp := []

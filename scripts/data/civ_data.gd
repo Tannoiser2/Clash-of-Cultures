@@ -160,23 +160,3 @@ const LEADERS := {
 	"l02": ["Ahuitzotl", "aztecs", 43, "Espansionista", "Rimuovendo le perdite: può annullare un \"colpo\" se non ci sono città azteche entro 2 caselle da lui.", "Sacrificio di massa", "Una volta per turno: come azione gratuita, sacrifica 2 Prigionieri per costruire un edificio o una Meraviglia nella sua città al costo normale."],
 	"l01": ["Acamapichtli", "aztecs", 44, "Crescita", "Quando costruisci un edificio o una Meraviglia nella sua città, ogni Prigioniero può essere speso come 2 risorse qualsiasi.", "Tributi", "Una volta per turno: come azione gratuita, paga 2 Umore per raccogliere dalla sua città se è di dimensione 3 o inferiore."],
 }
-
-## Avanzamenti di civiltà il cui effetto è applicato dal gioco (gli altri sono solo descritti).
-const AUTO_ADV := ["Flood Plains", "Embalming", "Captives", "Aztec Gold", "Formal Training", "Spartans", "Warbeasts",
-	"Pirate Allies", "City Independence", "Biremes", "Cedars & Dyes", "Terracing", "Stelas", "Ballcourts", "Rice Paddies",
-	"Fireworks", "Longships", "Runestones", "Aqueducts", "Slave Economy", "Provinces", "Indian Elephants", "Elephants",
-	"Banking", "Tribal Warfare", "Tribal Trade", "Canals", "Code of Laws", "Star Catalogues", "Ziggurats", "Raiders",
-	"Mounted Archers", "Pottery", "Horsemanship"]
-
-## Abilità dei capi applicate dal gioco: codice -> [prima abilità, seconda abilità].
-const AUTO_LEADER := {
-	"l41": [false, true], "l40": [false, true], "l39": [false, true], "l38": [false, false], "l25": [true, false],
-	"l24": [true, true], "l23": [false, true], "l22": [false, false], "l45": [true, true], "l44": [false, false],
-	"l43": [true, false], "l42": [true, true], "l21": [false, true], "l20": [false, true], "l19": [false, true],
-	"l18": [true, true], "l37": [true, true], "l36": [false, false], "l35": [true, false], "l34": [false, false],
-	"l17": [false, true], "l16": [true, false], "l15": [false, true], "l14": [false, true], "l33": [true, false],
-	"l32": [true, false], "l31": [true, false], "l30": [false, true], "l10": [true, false], "l11": [true, false],
-	"l12": [false, false], "l13": [false, true], "l26": [false, true], "l27": [false, true], "l28": [true, false],
-	"l29": [true, false], "l06": [false, true], "l07": [false, true], "l08": [false, true], "l09": [true, false],
-	"l05": [true, false], "l04": [false, true], "l03": [false, false], "l02": [true, false], "l01": [false, false],
-}

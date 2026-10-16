@@ -29,6 +29,17 @@ func _initialize() -> void:
 			seats.append({"color": i, "ai": true, "name": "IA%d" % i, "level": levels[i]})
 		var civ := OS.get_environment("COC_CIV") != ""
 		e.setup({"seats": seats, "seed": 1000 + g, "opts": {"civ": civ}})
+		if civ and OS.get_environment("COC_FUZZ") != "":
+			# prova di resistenza: tutti hanno tutti gli avanzamenti di civiltà e Capi di ogni civiltà
+			var all_l: Array = CivData.LEADERS.keys()
+			all_l.sort()
+			e.shuffle(all_l)
+			for p in np:
+				for ck in CivData.CIVS:
+					for ca in CivData.CIVS[ck]["adv"]:
+						if not e.players[p]["adv"].has(ca[0]):
+							e.players[p]["adv"].append(ca[0])
+				e.players[p]["leaders_avail"] = all_l.slice(p * 11, p * 11 + 11)
 		await e.run()
 		wins[e.results[0]["p"]] += 1
 		for r in e.results:

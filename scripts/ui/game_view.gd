@@ -369,7 +369,7 @@ func _show_civ(p: int) -> void:
 		box.add_child(bvb)
 		var req: String = "un avanzamento di governo" if a[2] == "gov" else D.adv_it(a[2])
 		bvb.add_child(UI.label("%s  (%s)%s" % [a[1], req, "  ✓" if owned else ""], 17, UI.DARK if owned else UI.GOLD, UI.font_bold))
-		var tx := UI.label(a[3] + ("" if a[0] in CivData.AUTO_ADV else "\n[effetto non applicato automaticamente]"), 14, UI.DARK if owned else UI.PARCH)
+		var tx := UI.label(a[3], 14, UI.DARK if owned else UI.PARCH)
 		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tx.custom_minimum_size = Vector2(500, 0)
 		bvb.add_child(tx)
@@ -394,9 +394,8 @@ func _show_civ(p: int) -> void:
 		img.modulate = Color(1, 1, 1, 1) if st != "perduto" else Color(0.5, 0.5, 0.5)
 		col.add_child(img)
 		col.add_child(UI.label("%s (%s)" % [L[0], st], 16, UI.INK, UI.font_bold))
-		var auto: Array = CivData.AUTO_LEADER.get(code, [false, false])
 		for i in 2:
-			var t := UI.label("%s: %s%s" % [L[3 + i * 2], L[4 + i * 2], "" if auto[i] else " [non automatica]"], 13, UI.INK)
+			var t := UI.label("%s: %s" % [L[3 + i * 2], L[4 + i * 2]], 13, UI.INK)
 			t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			t.custom_minimum_size = Vector2(285, 0)
 			col.add_child(t)
@@ -406,6 +405,10 @@ func _show_civ(p: int) -> void:
 		extra.append("Capi nemici uccisi: %s (2 PV ciascuno)" % ", ".join(pl["killed_leaders"].map(func(x): return CivData.LEADERS[x][0])))
 	if int(pl.get("captives", 0)) > 0:
 		extra.append("Prigionieri: %d (½ PV ciascuno)" % pl["captives"])
+	if not pl.get("erik", []).is_empty():
+		extra.append("Regioni rivendicate da Erik il Rosso: %d (1 PV ciascuna)" % pl["erik"].size())
+	if int(pl.get("anarchy", 0)) > 0:
+		extra.append("Avanzamenti di governo sulla carta Anarchia: %d (1 PV ciascuno)" % pl["anarchy"])
 	if int(pl.get("architect", 0)) > 0:
 		extra.append("Grande architetto: %d Cultura per la prossima Meraviglia" % pl["architect"])
 	if not extra.is_empty():
@@ -702,6 +705,10 @@ func _refresh_info() -> void:
 			parts.append(D.B_NAME[b] + ("" if c["b"][b] == c["o"] else " (di %s)" % engine.pname(c["b"][b])))
 		for w in c["w"]:
 			parts.append(D.WONDERS[w]["it"])
+		if int(c.get("cleo", 0)) > 0:
+			parts.append("Cultura di Cleopatra: %d" % c["cleo"])
+		if c.has("druid"):
+			parts.append("influenza druidica di %s" % engine.pname(c["druid"]))
 		if not parts.is_empty():
 			var bl := UI.label("Edifici: " + ", ".join(parts), 15, UI.PARCH)
 			bl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -848,7 +855,14 @@ func _refresh_bar() -> void:
 	bar_title.text = "[b]Tocca a te[/b]: %s. Clicca una tua città o un tuo colono sulla mappa, oppure scegli qui." % (
 		("%d azioni" % acts) if acts != 1 else "1 azione") if acts > 0 else "[b]Azioni finite[/b]: puoi ancora usare le azioni gratuite, poi chiudi il turno."
 	var buy: Array = engine.buyable_advances(p2)
-	_bar_button("Avanzamento", func(): _show_advances(p2, buy, func(a): _provide({"t": "advance", "a": a})), acts > 0 and not buy.is_empty(),
+	# Pace e poesia (India): se manca il Cibo, 1 Umore paga l'avanzamento
+	var pp: bool = engine.civ_adv(p2, "Peace & Poetry") and not engine.T.get("pp", false) and engine.res(p2, "mood") >= 1
+	if pp:
+		for a0 in D.all_advances():
+			if engine.can_buy_adv(p2, a0) and not buy.has(a0):
+				buy.append(a0)
+	_bar_button("Avanzamento", func(): _show_advances(p2, buy, func(a): _provide({"t": "advance", "a": a,
+		"pp": pp and not engine.can_pay(p2, {"food": engine.adv_food_cost(p2, a)}, ["idea"])})), acts > 0 and not buy.is_empty(),
 		"Compra un avanzamento: 2 Cibo (Idee e Oro valgono come Cibo).")
 	_bar_button("Muovi", func(): _provide({"t": "move"}), acts > 0, "Muovi fino a 3 unità o gruppi.")
 	var any_happy: bool = engine.cities_of(p2).any(func(c): return c["mood"] < 2)
@@ -1254,7 +1268,7 @@ func _show_cards(p: int) -> void:
 
 # ---- raccolta
 
-func _collect_dialog(p: int, c: Dictionary, free: bool) -> void:
+func _collect_dialog(p: int, c: Dictionary, free: bool, what := "econlib") -> void:
 	var info: Dictionary = engine.collect_options(c)
 	var picks: Array = engine.auto_collect(c)
 	var state := {}
@@ -1274,12 +1288,15 @@ func _collect_dialog(p: int, c: Dictionary, free: bool) -> void:
 	vb.add_child(rows)
 	var confirm := UI.primary(UI.button("Raccogli", 220, 46))
 	var upd := func():
-		var lim: int = info["count"] + (2 if card_sel["id"] != "" and engine.card_kind(card_sel["id"]) == "mass_collection" else 0)
+		var lim: int = info["count"] + (2 if card_sel["id"] != "" and engine.card_kind(card_sel["id"]) == "mass_collection" else 0) + (1 if metal.get("bc", false) else 0)
 		cnt_lbl.text = "Risorse scelte: %d su %d (una per casella; il mare al massimo una volta)" % [state.size(), lim]
 		var pk2 := []
 		for k in state:
 			pk2.append([k, state[k]])
+		if metal.get("bc", false):
+			engine.T["bc_city"] = c["id"]
 		confirm.disabled = not engine.valid_collect(c, pk2, card_sel["id"])
+		engine.T.erase("bc_city")
 		var marks := {}
 		for k in state:
 			marks[k] = Color("#6fd36f")
@@ -1294,10 +1311,14 @@ func _collect_dialog(p: int, c: Dictionary, free: bool) -> void:
 		for r in s["opts"]:
 			var b := Button.new()
 			b.toggle_mode = true
-			b.icon = UI.tex("res://assets/icons/%s.png" % r)
-			b.expand_icon = true
+			if r == "captive":
+				b.text = "Prig."
+				b.tooltip_text = "Un Prigioniero (Impero tributario): togli un'unità barbara"
+			else:
+				b.icon = UI.tex("res://assets/icons/%s.png" % r)
+				b.expand_icon = true
+				b.tooltip_text = D.RES_NAME[r]
 			b.custom_minimum_size = Vector2(46, 40)
-			b.tooltip_text = D.RES_NAME[r]
 			b.button_pressed = state.get(s["h"], "") == r
 			b.add_theme_stylebox_override("pressed", UI.flat(Color("#e8c26a"), UI.INK, 2, 6, 3))
 			b.add_theme_stylebox_override("normal", UI.flat(Color("#d8c8a0"), UI.INK2, 1, 6, 3))
@@ -1325,6 +1346,14 @@ func _collect_dialog(p: int, c: Dictionary, free: bool) -> void:
 			card_sel["id"] = id if on else ""
 			upd.call())
 		vb.add_child(cb)
+	if not free and engine.civ_adv(p, "Ballcourts") and engine.res(p, "mood") >= 1 and c["mood"] > 0:
+		var cbb := CheckBox.new()
+		cbb.text = "Campi da pelota: paga 1 Umore, la città conta 1 in più"
+		cbb.add_theme_color_override("font_color", UI.INK)
+		cbb.toggled.connect(func(on):
+			metal["bc"] = on
+			upd.call())
+		vb.add_child(cbb)
 	if engine.has_adv(p, "Metallurgy"):
 		var cm := CheckBox.new()
 		cm.text = "Metallurgia: con almeno 2 Minerale, uno diventa Oro"
@@ -1340,9 +1369,9 @@ func _collect_dialog(p: int, c: Dictionary, free: bool) -> void:
 		for k in state:
 			pk3.append([k, state[k]])
 		if free:
-			_provide({"t": "free", "what": "econlib", "c": c["id"], "picks": pk3, "metal": metal["on"]})
+			_provide({"t": "free", "what": what, "c": c["id"], "picks": pk3, "metal": metal["on"]})
 		else:
-			_provide({"t": "collect", "c": c["id"], "picks": pk3, "card": card_sel["id"], "metal": metal["on"]}))
+			_provide({"t": "collect", "c": c["id"], "picks": pk3, "card": card_sel["id"], "metal": metal["on"], "bc": metal.get("bc", false)}))
 	hb2.add_child(confirm)
 	var canc := UI.button("Annulla", 160, 46)
 	canc.pressed.connect(func():
@@ -1358,13 +1387,16 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 	var comp := {}
 	for t0 in engine.unit_list():
 		comp[t0] = 0
-	var flags := {"sanit": false, "draft": false}
-	var vb := _open_modal("Reclutamento: al massimo %d unità" % engine.eff_size(c), 640)
+	var flags := {"sanit": false, "draft": false, "bc": false, "shogun": false}
+	var vb := _open_modal("Reclutamento: al massimo %d unità" % engine.eff_size(c), 680)
 	var msg := UI.label("", 17, UI.TERRA, UI.font_bold)
 	var cost_l := UI.label("", 17, UI.INK)
 	var confirm := UI.primary(UI.button("Recluta", 200, 46))
 	var upd := func():
+		if flags["bc"]:
+			engine.T["bc_city"] = c["id"]
 		var why: String = engine.valid_recruit(p, c, comp, flags["sanit"], flags["draft"])
+		engine.T.erase("bc_city")
 		msg.text = why
 		cost_l.text = "Costo: " + engine.cost_text(engine.recruit_cost(p, comp, flags["sanit"], flags["draft"], c))
 		confirm.disabled = why != ""
@@ -1417,11 +1449,25 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 			flags["draft"] = on
 			upd.call())
 		vb.add_child(cd)
+	if engine.civ_adv(p, "Ballcourts") and engine.res(p, "mood") >= 1 and c["mood"] > 0:
+		var cbb := CheckBox.new()
+		cbb.text = "Campi da pelota: paga 1 Umore, la città conta 1 in più"
+		cbb.add_theme_color_override("font_color", UI.INK)
+		cbb.toggled.connect(func(on):
+			flags["bc"] = on
+			upd.call())
+		vb.add_child(cbb)
+	if engine.civ_adv(p, "Shogunate") and engine.has_adv(p, "Draft") and not engine.T.get("shogun_d", false):
+		var csh := CheckBox.new()
+		csh.text = "Shogunato: la Fanteria della Leva diventa una carta Azione"
+		csh.add_theme_color_override("font_color", UI.INK)
+		csh.toggled.connect(func(on): flags["shogun"] = on)
+		vb.add_child(csh)
 	vb.add_child(cost_l)
 	vb.add_child(msg)
 	var hb2 := HBoxContainer.new()
 	vb.add_child(hb2)
-	confirm.pressed.connect(func(): _provide({"t": "recruit", "c": c["id"], "comp": comp.duplicate(), "sanit": flags["sanit"], "draft": flags["draft"]}))
+	confirm.pressed.connect(func(): _provide({"t": "recruit", "c": c["id"], "comp": comp.duplicate(), "sanit": flags["sanit"], "draft": flags["draft"], "bc": flags["bc"], "shogun": flags["shogun"]}))
 	hb2.add_child(confirm)
 	var canc := UI.button("Annulla", 160, 46)
 	canc.pressed.connect(_clear_modal)
@@ -1490,17 +1536,16 @@ func _influence_dialog(p: int, arts: bool) -> void:
 	var list := VBoxContainer.new()
 	sc.add_child(list)
 	for o in opts:
-		var tg: Dictionary = engine.cities[o["to"]]
-		var src: Dictionary = engine.cities[o["from"]]
-		marks[tg["h"]] = Color("#c58cff")
+		var th: String = o["to_h"]
+		marks[th] = Color("#c58cff")
 		for b in o["b"]:
-			var txt := "%s nella città di %s (da una tua città di dim. %d%s)" % [D.B_NAME[b], engine.pname(tg["o"]), engine.city_size(src),
+			var txt := "%s (da: %s%s)" % [engine.infl_target_text(o, b), o["label"],
 				(", +%d raggio: %d Cultura" % [o["need"], o["need"]]) if o["need"] > 0 else ""]
 			var bt := UI.button(txt, 780, 42, 15)
 			bt.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			var m := {"t": "free", "what": "arts", "from": o["from"], "to": o["to"], "b": b} if arts else {"t": "influence", "from": o["from"], "to": o["to"], "b": b}
 			bt.pressed.connect(func(): _provide(m))
-			bt.mouse_entered.connect(func(): board.set_selected(tg["h"]))
+			bt.mouse_entered.connect(func(): board.set_selected(th))
 			list.add_child(bt)
 	board.set_targets(marks)
 	var canc := UI.button("Annulla", 160, 46)
@@ -1515,7 +1560,7 @@ func _influence_dialog(p: int, arts: bool) -> void:
 func _specials_dialog(p: int) -> void:
 	var vb := _open_modal("Azioni speciali", 720)
 	for w in engine.free_options(p):
-		var b := UI.button(engine.FREE_NAME.get(w, w), 680, 44, 16)
+		var b := UI.button(engine.free_name(w), 680, 44, 16)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		var ww: String = w
 		b.pressed.connect(func(): _special(p, ww))
@@ -1637,6 +1682,8 @@ func _special(p: int, w: String) -> void:
 				box2.add_child(b)
 				flow2.add_child(box2)
 			_close_button(vb6, "Annulla")
+		"x_l01":
+			_collect_dialog(p, engine.leader_city(p), true, "x_l01")
 		"library":
 			var lst := []
 			for a in D.all_advances():

@@ -37,7 +37,8 @@ Versione digitale per uso personale di **Clash of Cultures: Monumental Edition**
 Semplificazioni: con la Navigazione le navi raggiungono qualsiasi mare sul bordo del tabellone (non solo il primo
 gruppo nella direzione scelta), i pagamenti usano automaticamente prima la risorsa richiesta e poi Oro/Idee, e gli
 obiettivi si completano da soli quando sono soddisfatti. L'IA è euristica: espande, si difende dai barbari e
-attacca quando è in vantaggio, ma costruisce poche meraviglie.
+attacca quando è in vantaggio, sceglie dove fondare evitando di sovrapporre le città, esplora attorno alle
+proprie città, punta sugli edifici e risparmia Cultura e Umore per le meraviglie (che restano rare).
 
 Gli scambi liberi fra giocatori non sono gestiti.
 
@@ -57,10 +58,17 @@ Si attiva dal menu con **Espansione Civiltà** (funziona anche online). Il gioco
 - **20 eventi** (rivoluzioni, eclissi, Cavallo di Troia, pandemia, peste nera, carestie, incendio, grandi
   personaggi Architetto, Atleta, Diplomatico e Oracolo…) e **6 carte Obiettivo** (12 obiettivi) dell'espansione.
 
-Limiti: delle 60 abilità di civiltà ne sono applicate 34 e delle 90 abilità dei Capi circa la metà (soprattutto
-quelle di battaglia, conquista e costruzione); le altre sono descritte nella plancia con la nota «non automatica».
-Mancano le varianti «Capi casuali» e «Storia alternativa». L'IA usa le nuove unità e i Capi ma non va a caccia
-di pirati.
+- **Tutte le abilità** dei 60 avanzamenti di civiltà e dei 45 Capi sono applicate dal gioco: bonus e annullamenti
+  in battaglia, pagamenti alternativi (Umore, Idee, Prigionieri), Influenza estesa (Ellenizzazione, Proselitismo,
+  Zoroastrismo, Influenza druidica), rotte commerciali delle civiltà, movimenti speciali (Arte navale, Strade
+  imperiali, Nomadi) e una ventina di azioni speciali nuove nel pulsante «Speciali» (Egemonia, Calendario, Bande
+  armate, Augusto, Erik il Rosso, Cleopatra, Dario, Suiko…).
+
+Semplificazioni dell'espansione: Attila usa da solo l'abilità dell'Elefante su una Cavalleria quando conviene;
+Alleati pirati fa attraversare e condividere i mari con i Pirati e protegge dalle loro razzie, senza farli
+combattere per Cartagine; Silla nega sempre ai Barbari vicini di muovere contro il suo giocatore. Mancano le
+varianti «Capi casuali» e «Storia alternativa». L'IA usa Capi, nuove unità e quasi tutte le azioni speciali,
+ma non va a caccia di pirati.
 
 ## Gioco online
 Dal menu, **GIOCA ONLINE** (anche dalla versione web). Usa lo stesso progetto Firebase degli altri giochi della
@@ -81,6 +89,7 @@ scripts/data/civ_data.gd        espansione Civiltà: civiltà, avanzamenti di ci
 scripts/core/engine_state.gd    stato, geometria esagonale, risorse, mazzi, decisioni
 scripts/core/engine_actions.gd  preparazione, esplorazione, azioni del turno
 scripts/core/engine_combat.gd   movimento, battaglie, conquista, barbari
+scripts/core/engine_civ.gd      espansione Civiltà: azioni speciali di civiltà e Capi, rotte delle civiltà
 scripts/core/engine.gd          turno, carte, eventi, obiettivi, fase di status, punteggio
 scripts/core/ai.gd              IA euristica
 scripts/ui/board3d.gd           mappa 3D, telecamera, caselle cliccabili
@@ -96,6 +105,8 @@ tests/                          sim.gd (IA contro IA), shot.gd (screenshot), onl
 ```
 godot --headless --path . -s res://tests/sim.gd -- 10 4 1,1,2,1     # 10 partite a 4, livelli per posto
 COC_CIV=1 godot --headless --path . -s res://tests/sim.gd -- 10 4    # le stesse con l'espansione Civiltà
+COC_CIV=1 COC_FUZZ=1 godot --headless --path . -s res://tests/sim.gd -- 6 4   # tutti con tutte le abilità
+godot --headless --path . -s res://tests/exp_specials.gd             # ogni azione speciale dell'espansione
 xvfb-run godot --path . -s res://tests/shot.gd -- game 6             # screenshot in user://shots
 xvfb-run godot --path . -s res://tests/shot.gd -- civ                # screenshot dell'espansione
 ```
