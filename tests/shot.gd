@@ -73,6 +73,35 @@ func _run() -> void:
 	await wait(5)
 	await shot("collect")
 	g._clear_modal()
+	g._recruit_dialog(0, g.engine.city_at(home))
+	await wait(5)
+	await shot("recruit")
+	g._clear_modal()
+	g._happy_dialog(0, false)
+	await wait(5)
+	await shot("happy")
+	g._clear_modal()
+	g._show_cards(0)
+	await wait(5)
+	await shot("cards0")
+	g._clear_modal()
+	# movimento come farebbe una persona: Muovi, clic sul colono, clic sulla destinazione
+	g._provide({"t": "move"})
+	await wait(10)
+	g._on_hex(home)
+	await wait(5)
+	await shot("move_select")
+	var tg: Dictionary = g.engine.move_targets(0, g.move_sel)
+	print("bersagli ", tg.keys())
+	if not tg.is_empty():
+		g._on_hex(tg.keys()[0])
+		await wait(10)
+		await shot("moved")
+	if g.pending.get("type", "") == "choice":
+		auto_answer()
+		await wait(5)
+	if g.pending.get("type", "") == "move":
+		g._provide({"done": true})
 	var count := 0
 	var t0 := Time.get_ticks_msec()
 	while g.engine.turn_count < turns * 4 and not g.engine.game_over and Time.get_ticks_msec() - t0 < 120000:

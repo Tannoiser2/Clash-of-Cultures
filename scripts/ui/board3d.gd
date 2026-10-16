@@ -182,7 +182,7 @@ func _refresh_hexes() -> void:
 		if h["ter"] == "sea":
 			m.metallic_specular = 0.7
 		if not reg["revealed"] and pv.is_empty():
-			m.albedo_color = Color(0.72, 0.64, 0.5)
+			m.albedo_color = Color(0.82, 0.74, 0.6)
 		elif h["ter"] == "plains" or (not pv.is_empty()):
 			m.albedo_color = Color(0.86, 0.86, 0.8)
 		mi.material_override = m
@@ -431,6 +431,7 @@ func _mark(k: String, col: Color, pulse: bool) -> void:
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.albedo_color = col
 	m.no_depth_test = true
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.render_priority = 2
 	mi.material_override = m
 	mi.position = world(k) + Vector3(0, top_y(k) + 0.02, 0)

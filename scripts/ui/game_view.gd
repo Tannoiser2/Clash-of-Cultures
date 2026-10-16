@@ -152,8 +152,8 @@ func _build_top() -> void:
 	turn_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	turn_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	hb.add_child(turn_lbl)
-	for b in [["Regole", _show_rules], ["Diario", _show_log], ["♪", _toggle_audio], ["Menu", _ask_quit]]:
-		var bt := UI.button(b[0], 90 if b[0] != "♪" else 46, 40, 16)
+	for b in [["Regole", _show_rules], ["Diario", _show_log], ["Suoni", _toggle_audio], ["Menu", _ask_quit]]:
+		var bt := UI.button(b[0], 90, 40, 16)
 		bt.pressed.connect(b[1])
 		hb.add_child(bt)
 
@@ -213,14 +213,14 @@ func _build_bar() -> void:
 
 func _build_cam() -> void:
 	var hb := HBoxContainer.new()
-	hb.position = Vector2(RX - 300, 896)
+	hb.position = Vector2(RX - 330, 896)
 	hb.add_theme_constant_override("separation", 4)
 	add_child(hb)
-	for b in [["⟲", func(): board.rotate_by(-0.5)], ["⟳", func(): board.rotate_by(0.5)], ["+", func(): board.zoom(0.85)],
-			["−", func(): board.zoom(1.18)], ["Vista", func(): board.top_view()], ["◎", func(): board.reset_view()]]:
-		var bt := UI.button(b[0], 44 if b[0] != "Vista" else 70, 40, 18)
+	for b in [["<", func(): board.rotate_by(-0.5)], [">", func(): board.rotate_by(0.5)], ["+", func(): board.zoom(0.85)],
+			["-", func(): board.zoom(1.18)], ["Vista", func(): board.top_view()], ["Tutto", func(): board.reset_view()]]:
+		var bt := UI.button(b[0], 44 if b[0].length() == 1 else 76, 40, 18)
 		bt.pressed.connect(b[1])
-		bt.tooltip_text = {"⟲": "Ruota", "⟳": "Ruota", "+": "Avvicina", "−": "Allontana", "Vista": "Dall'alto / di lato", "◎": "Inquadra tutto"}[b[0]]
+		bt.tooltip_text = {"<": "Ruota", ">": "Ruota", "+": "Avvicina", "-": "Allontana", "Vista": "Dall'alto / di lato", "Tutto": "Inquadra tutta la mappa"}[b[0]]
 		hb.add_child(bt)
 
 
@@ -1077,6 +1077,7 @@ func _show_cards(p: int) -> void:
 	vb.add_child(sc)
 	var inner := VBoxContainer.new()
 	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.custom_minimum_size = Vector2(1270, 0)
 	sc.add_child(inner)
 	for sect in [["Carte Azione e grandi personaggi", engine.players[p]["hand"]], ["Obiettivi", engine.players[p]["obj"]], ["Meraviglie", engine.players[p]["won"]]]:
 		inner.add_child(UI.title(sect[0], 20, UI.INK))
@@ -1227,7 +1228,7 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 		val.custom_minimum_size = Vector2(36, 0)
 		val.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var tt: String = t
-		var minus := UI.button("−", 44, 40, 20)
+		var minus := UI.button("-", 44, 40, 20)
 		minus.pressed.connect(func():
 			comp[tt] = maxi(0, comp[tt] - 1)
 			val.text = str(comp[tt])
@@ -1422,7 +1423,7 @@ func _special(p: int, w: String) -> void:
 				var val := UI.label(str(get[r]), 20, UI.INK, UI.font_bold)
 				lbls[r] = val
 				var rr: String = r
-				var mi := UI.button("−", 44, 38)
+				var mi := UI.button("-", 44, 38)
 				mi.pressed.connect(func():
 					if get[rr] > 0:
 						get[rr] -= 1
