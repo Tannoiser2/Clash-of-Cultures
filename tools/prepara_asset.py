@@ -147,7 +147,7 @@ for name, (mesh, tex) in MODELS.items():
 # ---------------------------------------------------------------- tabellone e copertina
 bdir = mk('board')
 b = img('0CEE82F6626468F40C1C8FF0').convert('RGB')  # tabellone 2 giocatori: tanto mare
-b.crop((0, 900, 1100, 2000)).resize((512, 512), Image.LANCZOS).save(os.path.join(bdir, 'sea.jpg'), quality=86)
+b.crop((60, 1300, 780, 2020)).resize((512, 512), Image.LANCZOS).save(os.path.join(bdir, 'sea.jpg'), quality=86)
 for i, key in enumerate(('E1E1442C7E74E2D7267AC400', '0CEE82F6626468F40C1C8FF0', '7AA0D2E6822E22E424507F4E')):
     pass
 uidir = mk('ui')

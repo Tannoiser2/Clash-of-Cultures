@@ -30,6 +30,7 @@ var marks: Node3D
 var meshes := {}
 var mats := {}
 var targets := {}            # chiave -> colore
+var preview := {}            # regione -> {tile, oi}: anteprima dell'orientamento di una regione da scoprire
 var selected := ""
 var dragging := false
 var drag_moved := 0.0
@@ -79,8 +80,9 @@ func _build_env() -> void:
 	env.background_color = Color("#0d1a20")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("#d9c6a0")
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.32
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 0.95
 	env.fog_enabled = true
 	env.fog_light_color = Color("#16252b")
 	env.fog_density = 0.012
@@ -88,14 +90,14 @@ func _build_env() -> void:
 	add_child(we)
 	var sun := DirectionalLight3D.new()
 	sun.light_color = Color("#ffe1b0")
-	sun.light_energy = 1.25
+	sun.light_energy = 0.8
 	sun.rotation_degrees = Vector3(-52, -35, 0)
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 60.0
 	add_child(sun)
 	var fill := DirectionalLight3D.new()
 	fill.light_color = Color("#8fb4d6")
-	fill.light_energy = 0.25
+	fill.light_energy = 0.15
 	fill.rotation_degrees = Vector3(-30, 150, 0)
 	add_child(fill)
 	cam = Camera3D.new()
@@ -154,7 +156,8 @@ func _refresh_hexes() -> void:
 	for k in eng.hexes:
 		var h: Dictionary = eng.hexes[k]
 		var reg: Dictionary = eng.regions[h["reg"]]
-		var sig := "%s|%s|%s" % [h["ter"], reg["tile"], str(h["exhausted"])]
+		var pv: Dictionary = preview.get(h["reg"], {})
+		var sig := "%s|%s|%s|%s" % [h["ter"], reg["tile"], str(h["exhausted"]), str(pv)]
 		if hex_state.get(k, "") == sig:
 			continue
 		hex_state[k] = sig
@@ -163,21 +166,25 @@ func _refresh_hexes() -> void:
 		var mi := MeshInstance3D.new()
 		var tex_path := "res://assets/tiles/back.jpg"
 		var theta := 0.0
-		if reg["revealed"]:
+		if reg["revealed"] or not pv.is_empty():
+			var slots: Dictionary = reg["slots"] if pv.is_empty() else reg["orients"][pv["oi"]]["slots"]
+			var tile: String = reg["tile"] if pv.is_empty() else pv["tile"]
 			var slot := ""
-			for s in reg["slots"]:
-				if reg["slots"][s] == k:
+			for s in slots:
+				if slots[s] == k:
 					slot = s
-			tex_path = "res://assets/tiles/%s_%s.jpg" % [reg["tile"], slot]
-			theta = reg["theta"]
+			tex_path = "res://assets/tiles/%s_%s.jpg" % [tile, slot]
+			theta = reg["theta"] if pv.is_empty() else reg["orients"][pv["oi"]]["theta"]
 		mi.mesh = _hex_mesh(top_y(k), theta)
 		var m := StandardMaterial3D.new()
 		m.albedo_texture = load(tex_path)
 		m.roughness = 0.85 if h["ter"] != "sea" else 0.3
 		if h["ter"] == "sea":
 			m.metallic_specular = 0.7
-		if not reg["revealed"]:
-			m.albedo_color = Color(0.92, 0.86, 0.74)
+		if not reg["revealed"] and pv.is_empty():
+			m.albedo_color = Color(0.72, 0.64, 0.5)
+		elif h["ter"] == "plains" or (not pv.is_empty()):
+			m.albedo_color = Color(0.86, 0.86, 0.8)
 		mi.material_override = m
 		mi.position = world(k)
 		add_child(mi)
@@ -207,20 +214,20 @@ func _hex_mesh(h: float, theta: float) -> ArrayMesh:
 		st.set_normal(Vector3.UP)
 		st.set_uv(uv_of.call(Vector2.ZERO))
 		st.add_vertex(Vector3(0, h, 0))
-		st.set_uv(uv_of.call(b))
-		st.add_vertex(Vector3(b.x, h, b.y))
 		st.set_uv(uv_of.call(a))
 		st.add_vertex(Vector3(a.x, h, a.y))
+		st.set_uv(uv_of.call(b))
+		st.add_vertex(Vector3(b.x, h, b.y))
 		# fianco
 		var nrm := Vector3((a.x + b.x) / 2.0, 0, (a.y + b.y) / 2.0).normalized()
 		st.set_normal(nrm)
 		st.set_uv(Vector2(0.02, 0.02))
 		st.add_vertex(Vector3(a.x, h, a.y))
+		st.add_vertex(Vector3(b.x, 0, b.y))
 		st.add_vertex(Vector3(b.x, h, b.y))
-		st.add_vertex(Vector3(b.x, 0, b.y))
 		st.add_vertex(Vector3(a.x, h, a.y))
-		st.add_vertex(Vector3(b.x, 0, b.y))
 		st.add_vertex(Vector3(a.x, 0, a.y))
+		st.add_vertex(Vector3(b.x, 0, b.y))
 	var m := st.commit()
 	meshes[key] = m
 	return m
@@ -286,7 +293,7 @@ func refresh() -> void:
 		var c: Dictionary = eng.cities[id]
 		var base := world(c["h"]) + Vector3(0, top_y(c["h"]), 0)
 		var col: Color = UI.pcol(c["o"])
-		var st := piece("settlement", col, 0.42)
+		var st := piece("settlement", col, 0.6)
 		st.position = base + Vector3(0, 0, 0.05)
 		pieces.add_child(st)
 		var slots := {"temple": Vector3(-0.42, 0, -0.22), "academy": Vector3(0.42, 0, -0.22), "fortress": Vector3(-0.38, 0, 0.32)}
@@ -296,7 +303,7 @@ func refresh() -> void:
 			if b == "port" and c["port"] != "":
 				var d: Vector3 = (world(c["port"]) - world(c["h"])).normalized()
 				off = d * 0.72
-			var bp := piece(b, bc, 0.36)
+			var bp := piece(b, bc, 0.48)
 			bp.position = base + off
 			if b == "port" and c["port"] != "":
 				bp.position.y = SEA_TOP
@@ -304,7 +311,7 @@ func refresh() -> void:
 			pieces.add_child(bp)
 		var wslots := [Vector3(0.05, 0, -0.5), Vector3(0.42, 0, 0.3), Vector3(-0.05, 0, 0.55)]
 		for i in c["w"].size():
-			var wp := piece(c["w"][i], Color.WHITE, 0.55, false)
+			var wp := piece(c["w"][i], Color.WHITE, 0.75, false)
 			wp.position = base + wslots[i % 3]
 			pieces.add_child(wp)
 		if c["mood"] != 1:
@@ -352,7 +359,7 @@ func refresh() -> void:
 			var rad := 0.0 if (n == 1 and not has_city) else (0.62 if has_city else 0.38)
 			var off := Vector3(cos(ang), 0, sin(ang)) * rad
 			var model: String = u["t"]
-			var hgt := {"settler": 0.36, "infantry": 0.4, "ship": 0.4}[model]
+			var hgt: float = {"settler": 0.5, "infantry": 0.55, "ship": 0.5}[model]
 			var pc := piece(model, UI.pcol(u["o"]), hgt)
 			pc.position = base2 + off
 			if u["on"] != -1:
@@ -369,6 +376,11 @@ func refresh() -> void:
 func set_targets(t: Dictionary) -> void:
 	targets = t
 	_refresh_marks()
+
+
+func set_preview(pv: Dictionary) -> void:
+	preview = pv
+	_refresh_hexes()
 
 
 func set_selected(k: String) -> void:
@@ -390,11 +402,11 @@ func _ring_mesh() -> ArrayMesh:
 		var i1 := o1 * 0.82
 		st.set_normal(Vector3.UP)
 		st.add_vertex(o0)
+		st.add_vertex(i1)
 		st.add_vertex(o1)
-		st.add_vertex(i1)
 		st.add_vertex(o0)
-		st.add_vertex(i1)
 		st.add_vertex(i0)
+		st.add_vertex(i1)
 	var m := st.commit()
 	meshes["_ring"] = m
 	return m
@@ -512,10 +524,10 @@ func pick(pos: Vector2) -> String:
 
 
 func reset_view() -> void:
-	t_target = Vector3(0, 0, 0.6)
+	t_target = Vector3(0.3, 0, 1.4)
 	t_yaw = 0.0
-	t_pitch = 1.05
-	t_dist = maxf(bounds.size.x, bounds.size.y) * 1.15 + 3.0
+	t_pitch = 0.92
+	t_dist = maxf(bounds.size.x, bounds.size.y) * 1.0 + 2.0
 	yaw = t_yaw
 	pitch = t_pitch
 	dist = t_dist

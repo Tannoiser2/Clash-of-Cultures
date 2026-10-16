@@ -1,0 +1,78 @@
+extends Control
+## Regole in breve (dal regolamento della Monumental Edition, gioco base) e uso dell'interfaccia.
+
+const RULES := """[b]Scopo[/b]
+Guidi una civiltà da un solo villaggio a un impero. Dopo 6 ere (3 round ciascuna, poi una fase di status) vince chi ha più punti vittoria:
+• 1 PV per ogni insediamento ed edificio del tuo colore (anche quelli che hai «influenzato» nelle città altrui);
+• ½ PV per ogni avanzamento;
+• 2 PV per ogni obiettivo completato;
+• 4 PV per ogni meraviglia (2 se conquistata, divisi con chi l'ha costruita; le Piramidi valgono 5 e restano a chi le ha costruite);
+• i PV di alcune carte Evento (Vulcano, Terremoto).
+La partita finisce prima se, all'inizio di una fase di status, qualcuno non ha più città.
+
+[b]Il turno[/b]
+Nel tuo turno fai 3 azioni principali, in qualsiasi ordine, anche ripetute:
+• [b]Avanzamento[/b]: paghi 2 Cibo (Idee e Oro valgono come Cibo) e compri un avanzamento. In ogni categoria serve prima quello in alto. Le categorie di governo (Democrazia, Autocrazia, Teocrazia) richiedono un avanzamento indicato e se ne può avere una sola. I bordi gialli danno +1 Umore, quelli blu +1 Cultura. Ogni tre avanzamenti il segnaeventi si svuota e peschi un [b]Evento[/b].
+• [b]Fonda una città[/b]: un Colono diventa un insediamento, su una casella di terra non arida, senza città, nemici o terra esausta.
+• [b]Attiva una città[/b]: raccogli, costruisci o recluti. Ogni attivazione in più nello stesso turno peggiora l'umore della città; una città Arrabbiata si attiva una sola volta.
+  – [i]Raccogli[/i]: tante risorse quanta è la dimensione della città (+1 se Felice, solo 1 se Arrabbiata), una per casella fra la sua e quelle adiacenti: Pianura Cibo, Foresta Legno (Coltivazione), Montagna Minerale (Estrazione), Mare Cibo (Pesca, una sola casella), Terre aride Cibo (Irrigazione). Il Porto permette Oro o Umore dal mare. Niente raccolta da caselle con nemici, altre città o terra esausta.
+  – [i]Costruisci[/i]: 1 Cibo, 1 Legno, 1 Minerale per un edificio (Tempio con Miti, Accademia con Scrittura, Fortezza con Tattica, Porto con Pesca sulla costa). Non nelle città Arrabbiate, uno per tipo, e nessuna città può superare il numero di città che possiedi (massimo 5 pezzi).
+  – [i]Recluta[/i]: tante unità quanta è la dimensione (come per la raccolta). Colono 2 Cibo, Fanteria 1 Cibo + 1 Minerale, Nave 2 Legno (serve un Porto). Al massimo 4 eserciti per casella.
+  – [i]Meraviglia[/i]: con Ingegneria, in una città Felice, giocando la carta Meraviglia e pagandone il costo (con la Cultura).
+• [b]Muovi[/b]: fino a 3 unità o gruppi, una casella ciascuno (si può ripetere l'azione). Gli eserciti si muovono solo con Tattica. Chi entra in Montagna si ferma; chi entra in Foresta non può più attaccare in quel turno. Le navi corrono lungo i mari collegati (con la Navigazione girano attorno al tabellone) e portano 2 unità ciascuna: per imbarcarsi si entra nel mare con la nave, per sbarcare si muove dalla nave a terra. Entrare in una regione inesplorata la scopre.
+• [b]Aumenta la felicità[/b]: ogni passo d'umore costa tanti Umore quanta è la dimensione della città.
+• [b]Influenza la cultura[/b]: da una tua città (raggio = dimensione, +1 per ogni Cultura spesa) tiri un dado: con 5 o 6 un edificio della città bersaglio passa al tuo colore (vale per i tuoi punti). Dopo il tiro puoi spendere Cultura per aggiungere +1 ciascuna. Un solo successo per turno.
+Ci sono poi le [b]azioni gratuite[/b] e speciali di avanzamenti, meraviglie e carte (pulsante «Speciali» e «Carte»).
+
+[b]Combattimento[/b]
+Quando un esercito entra in una casella con nemici o una città nemica si combatte. In ogni round ognuno può giocare la tattica di una carta Azione (serve Tattica), poi tira un dado per esercito: la somma più +1 per ogni 5 o 6 (abilità della Fanteria) è il valore di combattimento; ogni 5 punti è un colpo che elimina un esercito nemico. La Fortezza dà nel primo round un dado in più e annulla un colpo. Dopo ogni round l'attaccante può ritirarsi. Chi resta solo in una città la conquista: riceve Oro pari alla dimensione (+1 se Felice, 1 se Arrabbiata), i pezzi passano al suo colore e la città diventa Arrabbiata; chi l'ha persa riceve un Colono. Vincere contro i Barbari dà 1 Oro (più 1 per una loro città conquistata).
+
+[b]Eventi e Barbari[/b]
+Gli eventi hanno spesso un'icona: Miniera d'oro (+2 Oro), Terra esausta, Barbari che compaiono (un insediamento a 2 caselle da te) o che si muovono verso le tue città. Gli eventi Grande personaggio si possono tenere come carte Azione pagando Cultura.
+
+[b]Obiettivi[/b]
+Ogni carta Obiettivo ha due obiettivi: se ne completa uno solo. Alcuni si completano subito (dopo una battaglia, una fondazione…), altri nella fase di status. Il gioco li completa da solo quando le condizioni sono soddisfatte.
+
+[b]Fase di status[/b] (dopo ogni era)
+1. Obiettivi di status. 2. Un avanzamento gratuito. 3. Si pesca 1 carta Azione e 1 Obiettivo. 4. Si può radere al suolo una città di dimensione 1 (+1 Oro). 5. Si può cambiare governo (1 Cultura e 1 Umore). 6. Chi ha più Umore + Cultura sceglie il primo giocatore.
+
+[b]Uso dell'interfaccia[/b]
+• Clicca una casella: a destra vedi città e unità, con i pulsanti per raccogliere, costruire, reclutare, fondare.
+• «Muovi»: clicca la casella con le tue unità, spunta quali muovere e clicca la destinazione illuminata (verde muovi, rosso battaglia, viola esplora, azzurro imbarca, giallo con le Strade). «Fine movimento» chiude l'azione.
+• Le scelte sulla mappa (dove mettere un colono, i barbari, il porto…) illuminano le caselle: basta un clic.
+• Passa il mouse sopra avanzamenti e carte per leggere il testo in italiano.
+• Trascina per ruotare, rotella o pizzico per lo zoom, tasto destro o Maiusc + trascina per spostare la vista. F11 schermo intero.
+
+[b]Cosa manca[/b]
+Questa versione è il gioco base della Monumental Edition: l'espansione Civiltà (capi, cavalleria, elefanti, pirati, mercati, obelischi, osservatori) non c'è ancora. Gli scambi liberi fra giocatori non sono gestiti."""
+
+var main
+
+
+func _ready() -> void:
+	size = Vector2(1920, 1080)
+	var bg := TextureRect.new()
+	bg.texture = UI.tex("res://assets/ui/stone.jpg")
+	bg.stretch_mode = TextureRect.STRETCH_TILE
+	bg.size = size
+	add_child(bg)
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", UI.paper(34))
+	pc.position = Vector2(220, 30)
+	pc.size = Vector2(1480, 1020)
+	add_child(pc)
+	var vb := VBoxContainer.new()
+	pc.add_child(vb)
+	vb.add_child(UI.title("Regole in breve", 40, UI.INK))
+	var sc := ScrollContainer.new()
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(sc)
+	var r := UI.rich(20, UI.INK)
+	r.custom_minimum_size = Vector2(1380, 0)
+	r.text = RULES
+	sc.add_child(r)
+	var b := UI.primary(UI.button("Torna al menu", 260, 54, 20))
+	b.size_flags_horizontal = Control.SIZE_SHRINK_END
+	b.pressed.connect(func(): main.show_menu())
+	vb.add_child(b)

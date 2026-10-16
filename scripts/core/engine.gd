@@ -71,7 +71,10 @@ func do_turn(p: int) -> void:
 				# l'IA ha proposto una mossa non valida: chiude il turno per sicurezza
 				if T["actions"] <= 0:
 					break
-			log_msg("(mossa non consentita)")
+			if OS.get_environment("COC_DEBUG") != "":
+				print("MOSSA NON VALIDA ", pname(p), " ", m, " azioni ", T["actions"])
+			if not players[p]["ai"] or online != null:
+				log_msg("(mossa non consentita)")
 		T["acted"] = true
 		await check_now(p, "any", {})
 		changed.emit()
@@ -321,9 +324,55 @@ func playable_cards(p: int) -> Array:
 		var k := card_kind(id)
 		if k == "":
 			continue
-		if _card_ok(p, id, k):
+		if _card_ok(p, id, k) and _card_useful(p, k):
 			out.append(id)
 	return out
+
+
+## Controlli più fini: la carta avrebbe davvero effetto adesso.
+func _card_useful(p: int, k: String) -> bool:
+	match k:
+		"advance":
+			return D.all_advances().any(func(a): return can_buy_adv(p, a))
+		"idea_synergy":
+			return not buyable_advances(p).is_empty()
+		"city_growth":
+			for c in cities_of(p):
+				for b in D.BUILDINGS:
+					if can_build(p, c, b) == "":
+						return true
+			return false
+		"inspiration", "tech_exchange":
+			for q in _near_players(p):
+				for a in players[q]["adv"]:
+					if can_buy_adv(p, a):
+						return true
+			return false
+		"teach_us":
+			for q in T["captured_from"]:
+				for a in players[q]["adv"]:
+					if can_buy_adv(p, a):
+						return true
+			return false
+		"tech_synergy":
+			if not can_pay(p, {"food": 4}, ["idea"]):
+				return false
+			for cat in D.CATEGORIES:
+				var k2 := 0
+				for a in D.ADV[cat]:
+					if not players[p]["adv"].has(a[0]):
+						k2 += 1
+				if k2 >= 2 and (players[p]["adv"].has(D.ADV[cat][0][0]) or can_buy_adv(p, D.ADV[cat][0][0])):
+					return true
+			return false
+		"cultural_awe":
+			for c in cities_of(-1):
+				if city_size(c) == 1:
+					return true
+			return false
+		"militia":
+			return supply_left(p, "infantry") > 0
+	return true
 
 
 func card_kind(id: String) -> String:

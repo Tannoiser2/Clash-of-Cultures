@@ -10,6 +10,7 @@ var level := 1
 var rng := RandomNumberGenerator.new()
 var fails := 0
 var last_turn := -1
+var tried := {}
 
 const ADV_VALUE := {
 	"Storage": 9.0, "Tactics": 7.5, "Myths": 8.0, "Writing": 7.0, "Fishing": 6.0, "Irrigation": 6.0,
@@ -154,6 +155,7 @@ func _turn(eng, p: int) -> Dictionary:
 	if eng.turn_count != last_turn:
 		last_turn = eng.turn_count
 		fails = 0
+		tried = {}
 	else:
 		fails += 1
 	if fails > 25:
@@ -232,9 +234,15 @@ func _turn(eng, p: int) -> Dictionary:
 		if not inf.is_empty():
 			cands.append([inf[0], {"t": "influence", "from": inf[1], "to": inf[2], "b": inf[3]}])
 	for cnd in cands:
+		var key := str(cnd[1])
+		if tried.get(key, 0) >= 2:
+			continue
 		if cnd[0] > bv:
 			bv = cnd[0]
 			best = cnd[1]
+	var bk := str(best)
+	if best.get("t", "") != "end":
+		tried[bk] = tried.get(bk, 0) + 1
 	return best
 
 

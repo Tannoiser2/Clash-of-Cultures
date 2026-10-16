@@ -1,7 +1,7 @@
 class_name Audio
 extends Node
-## Musica (calypso morbido con steel drum, in loop) ed effetti sonori. Tutto sintetizzato da
-## tools/sintetizza_audio.py. Musica ed effetti si spengono separatamente; le scelte restano salvate.
+## Musica (lira e tamburo a cornice in modo dorico, in loop) ed effetti sonori. Tutto sintetizzato da
+## tools/sintetizza_audio.py (effetti ripresi da Manila). Musica ed effetti si spengono separatamente; le scelte restano salvate.
 
 const SETTINGS := "user://suoni.cfg"
 const SFX := ["click", "pawn", "dice", "coin", "splash", "bell", "cannon", "market", "turn", "voyage", "win"]
@@ -87,23 +87,26 @@ static func sfx_enabled() -> bool:
 	return me != null and me.sfx_on
 
 
+## Accende o spegne insieme musica ed effetti.
+static func toggle_all() -> void:
+	var on := not (music_enabled() or sfx_enabled())
+	set_music(on)
+	set_sfx(on)
+
+
 ## Pulsante che accende/spegne musica o effetti, con l'etichetta aggiornata.
 static func toggle_button(kind: String, w := 150.0, h := 46.0) -> Button:
-	var b := UI.button("", w, h, 20)
+	var b := UI.button("", w, h, 18)
 	var paint := func():
 		var on := music_enabled() if kind == "music" else sfx_enabled()
 		b.text = ("Musica" if kind == "music" else "Effetti") + (": sì" if on else ": no")
-		if on:
-			UI.selected(b, "sea")
-		else:
-			b.add_theme_stylebox_override("normal", UI.plank("wood_off"))
-			b.add_theme_stylebox_override("hover", UI.plank("wood_hover"))
+		b.modulate = Color(1, 1, 1) if on else Color(0.65, 0.6, 0.55)
 	b.pressed.connect(func():
 		if kind == "music":
 			set_music(not music_enabled())
 		else:
 			set_sfx(not sfx_enabled())
 		paint.call())
-	b.tooltip_text = "Accende o spegne la musica caraibica" if kind == "music" else "Accende o spegne gli effetti sonori"
+	b.tooltip_text = "Accende o spegne la musica" if kind == "music" else "Accende o spegne gli effetti sonori"
 	paint.call()
 	return b
