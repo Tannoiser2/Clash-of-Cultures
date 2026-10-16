@@ -587,8 +587,12 @@ func auto_collect(c: Dictionary, weights := {}) -> Array:
 # ------------------------------------------------------------------ costruzione
 
 func can_build(p: int, c: Dictionary, b: String, ignore_activation := false) -> String:
+	if not b in D.BUILDINGS:
+		return "edificio sconosciuto"
 	if c["o"] != p:
 		return "non è tua"
+	if city_size(c) >= 5:
+		return "la città ha già 5 pezzi"
 	if c["b"].has(b):
 		return "c'è già"
 	if not has_adv(p, D.B_REQ[b]):
@@ -687,6 +691,8 @@ func valid_recruit(p: int, c: Dictionary, comp: Dictionary, sanit := false, draf
 		return "città già attivata"
 	var tot := 0
 	for t in comp:
+		if not t in D.UNITS:
+			return "unità sconosciuta"
 		if comp[t] < 0:
 			return "numero non valido"
 		tot += comp[t]
@@ -728,6 +734,7 @@ func do_recruit(p: int, cid: int, comp: Dictionary, sanit := false, draft := fal
 			if supply_left(p, t) <= 0:
 				# pezzo spostato dal tabellone
 				var lst := units_of(p, t)
+				lst.sort_custom(func(a, b): return carried(a["id"]).size() < carried(b["id"]).size())
 				if not lst.is_empty():
 					remove_unit(lst[0])
 			var where: String = c["port"] if t == "ship" else c["h"]
@@ -738,7 +745,7 @@ func do_recruit(p: int, cid: int, comp: Dictionary, sanit := false, draft := fal
 	if draft:
 		T["draft_recruits"] += 1
 	if has_adv(p, "Medicine"):
-		for r in ["ore", "wood", "food", "gold", "mood"]:
+		for r in ["ore", "wood", "food", "gold"]:
 			if paid.get(r, 0) > 0:
 				gain(p, r, 1)
 				break
@@ -786,6 +793,8 @@ func _lighthouse(p: int, c: Dictionary) -> void:
 func can_build_wonder(p: int, c: Dictionary, w: String, discount := 0) -> String:
 	if not players[p]["won"].has(w):
 		return "non hai la carta"
+	if city_size(c) >= 5:
+		return "la città ha già 5 pezzi"
 	if not has_adv(p, "Engineering"):
 		return "serve Ingegneria"
 	var info: Dictionary = D.WONDERS[w]
@@ -933,9 +942,7 @@ func influence_buildings(p: int, target: Dictionary) -> Array:
 	for b in target["b"]:
 		if target["b"][b] == p:
 			continue
-		if target["o"] == p:
-			out.append(b)   # riprendersi un proprio edificio influenzato
-		elif supply_left(p, b) > 0:
+		if supply_left(p, b) > 0:
 			out.append(b)
 	return out
 

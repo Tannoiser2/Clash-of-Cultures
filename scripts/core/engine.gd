@@ -216,18 +216,31 @@ func free_action(p: int, m: Dictionary) -> bool:
 			if happy_cost(p, steps) <= 0 or not can_pay_mood(p, happy_cost(p, steps) + 1):
 				return false
 			lose(p, "mood", 1)
-			return await do_happy(p, steps, true)
+			var ok_h: bool = await do_happy(p, steps, true)
+			if not ok_h:
+				gain(p, "mood", 1)
+			return ok_h
 		"econlib":
 			var c: Dictionary = cities.get(int(m.get("c", -1)), {})
 			if c.is_empty():
 				return false
+			if not can_activate(c) or not valid_collect(c, m.get("picks", [])):
+				return false
 			lose(p, "mood", 1)
 			T["econlib"] = true
-			return await do_collect(p, c["id"], m.get("picks", []), "", m.get("metal", false), true)
+			var ok_c: bool = await do_collect(p, c["id"], m.get("picks", []), "", m.get("metal", false), true)
+			if not ok_c:
+				gain(p, "mood", 1)
+				T["econlib"] = false
+			return ok_c
 		"arts":
 			T["arts"] = true
 			lose(p, "culture", 1)
-			return await do_influence(p, int(m.get("from", -1)), int(m.get("to", -1)), m.get("b", ""), true)
+			var ok_i: bool = await do_influence(p, int(m.get("from", -1)), int(m.get("to", -1)), m.get("b", ""), true)
+			if not ok_i:
+				gain(p, "culture", 1)
+				T["arts"] = false
+			return ok_i
 		"drama":
 			T["drama"] = true
 			if m.get("dir", "m2c") == "m2c" and res(p, "mood") > 0:
@@ -572,7 +585,7 @@ func play_card(p: int, m: Dictionary) -> bool:
 			_use_card(p, id, 1)
 			spend_action(false)
 			await _reveal_near_city(p, false)
-			if supply_left(p, "settler") > 0 and await yes_no(p, "Esploratori: metti un Colono gratis in una tua città?"):
+			if supply_left(p, "settler") > 0 and not cities_of(p).is_empty() and await yes_no(p, "Esploratori: metti un Colono gratis in una tua città?"):
 				var c3 := await _choose_city(p, "In quale città?", cities_of(p))
 				new_unit(p, "settler", c3["h"])
 		"new_goals":
@@ -795,17 +808,17 @@ func _mercenaries(p: int, id: String) -> bool:
 	for g in groups.keys():
 		if not await yes_no(p, "Mercenari: muovi l'esercito barbaro in %s?" % _hex_label(g)):
 			continue
+		var grp := armies_at(g, -1)
+		var dests := neighbors(g).filter(func(x): return is_land(x) and (has_enemy(x, -1) or armies_at(x, -1).size() + grp.size() <= 4))
 		var payopts := []
 		for r in ["food", "wood", "ore", "culture"]:
 			if res(p, r) > 0:
 				payopts.append(r)
-		if payopts.is_empty():
-			break
+		if payopts.is_empty() or dests.is_empty() or grp.is_empty():
+			continue
 		var ri := await choose(p, "Con che cosa paghi?", payopts.map(func(r): return D.RES_NAME[r]), {"force": true})
 		lose(p, payopts[ri], 1)
-		var dests := neighbors(g).filter(func(x): return is_land(x))
 		var to := await choose_hex(p, "Dove va l'esercito barbaro?", dests)
-		var grp := armies_at(g, -1)
 		var from_city: bool = not city_at(g).is_empty() and city_at(g)["o"] == -1
 		if has_enemy(to, -1):
 			for u in grp:
@@ -856,6 +869,7 @@ func _great_person(p: int, id: String, k: String) -> bool:
 			T["warlord_bonus"] = true
 			T["actions"] += 1
 			await do_move_action(p)
+			T["warlord_bonus"] = false
 		"gp_merchant":
 			if has_adv(p, "Trade Routes"):
 				await _trade_income(p)
@@ -1085,7 +1099,7 @@ func _event_effect(p: int, id: String, key: String) -> bool:
 		"volcano":
 			if cities_of(p).size() >= 4:
 				var c5 := await _choose_city(p, "Vulcano: quale città viene distrutta?", cities_of(p))
-				_destroy_city_pieces(c5, 99)
+				_destroy_city_pieces(c5, 99, true)
 				log_msg("Un vulcano distrugge una città di %s." % pname(p))
 				players[p]["events"].append(id)
 				return true
@@ -1121,7 +1135,7 @@ func _lose_unit(q: int, title: String) -> void:
 
 
 ## Toglie fino a k pezzi da una città (2 PV a chi possiede ogni pezzo, le meraviglie valgono il solito).
-func _destroy_city_pieces(c: Dictionary, k: int) -> int:
+func _destroy_city_pieces(c: Dictionary, k: int, kill_units := false) -> int:
 	var removed := 0
 	for b in c["b"].keys():
 		if removed >= k:
@@ -1141,8 +1155,9 @@ func _destroy_city_pieces(c: Dictionary, k: int) -> int:
 	if removed < k:
 		if c["o"] >= 0:
 			players[c["o"]]["vp_extra"] += 2
-		for u in units_at(c["h"]):
-			remove_unit(u)
+		if kill_units:
+			for u in units_at(c["h"]):
+				remove_unit(u)
 		cities.erase(c["id"])
 		removed += 1
 	return removed
@@ -1151,13 +1166,15 @@ func _destroy_city_pieces(c: Dictionary, k: int) -> int:
 func _earthquake(q: int) -> void:
 	var k := await choose(q, "Terremoto: quanti pezzi di città togli?", ["1", "2", "3"], {"force": true}) + 1
 	var left := k
+	var hit := {}
 	while left > 0 and not cities_of(q).is_empty():
 		var c := await _choose_city(q, "Terremoto: da quale città togli un pezzo (%d rimasti)?" % left, cities_of(q))
-		var before := city_size(c)
 		_destroy_city_pieces(c, 1)
 		left -= 1
-		if cities.has(c["id"]) and city_size(c) < before:
-			change_mood(c, -1)
+		hit[c["id"]] = true
+	for cid in hit:
+		if cities.has(cid):
+			await event_mood(q, cities[cid])
 	log_msg("Terremoto: %s perde %d pezzi di città (2 PV ciascuno)." % [pname(q), k])
 
 
@@ -1238,14 +1255,17 @@ func barbarians_move(p: int) -> void:
 			continue
 		for m in mine:
 			if _land_dist(u["h"], m, 2) <= 2:
-				groups[u["h"]] = true
+				groups[u["h"]] = groups.get(u["h"], []) + [u["id"]]
 				break
 	if groups.is_empty():
 		await barbarians_spawn(p, false)
 		return
 	log_msg("I Barbari si muovono verso %s!" % pname(p))
 	for g in groups.keys():
-		var grp := armies_at(g, -1)
+		var grp := []
+		for uid in groups[g]:
+			if units.has(uid) and units[uid]["h"] == g:
+				grp.append(units[uid])
 		if grp.is_empty():
 			continue
 		# passo verso la città più vicina (distanza su terra)
@@ -1353,11 +1373,10 @@ func _now_ok(p: int, key: String, what: String, d: Dictionary) -> bool:
 			"daring":
 				if not won or naval or not d.get("vs_army", false):
 					return false
-				var my_war := _cat_count(p, "Warfare")
-				var opp: int = q if d.get("attacker", false) else -1
-				if opp >= 0 and _cat_count(opp, "Warfare") > my_war:
+				var opp: int = d.get("opp", -1)
+				if opp >= 0 and _cat_count(opp, "Warfare") > _cat_count(p, "Warfare"):
 					return true
-				return d.get("start_def", 0) > d.get("start_att", 0) if d.get("attacker", false) else d.get("start_att", 0) > d.get("start_def", 0)
+				return d.get("theirs", 0) > d.get("mine", 0)
 			"defiance":
 				return not d.get("attacker", true) and d.get("killed", 0) >= 2
 			"legend":
@@ -1369,7 +1388,7 @@ func _now_ok(p: int, key: String, what: String, d: Dictionary) -> bool:
 			"warlord":
 				return d.get("killed", 0) >= 3 and not naval
 			"against_odds":
-				return won and q >= 0 and d.get("start_att", 0) < d.get("start_def", 0)
+				return won and d.get("opp", -1) >= 0 and d.get("mine", 0) < d.get("theirs", 0)
 			"marauder":
 				return q >= 0 and has_adv(q, "Trade Routes") and (d.get("killed_settler", 0) > 0 or d.get("killed_ship", 0) > 0)
 	if what == "capture":

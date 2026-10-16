@@ -259,6 +259,7 @@ func move_group(p: int, ids: Array, to: String, info: Dictionary, roads := false
 				set_mv(s["id"], "moved")
 			for c in cargo:
 				c["h"] = to
+				T["mv_this"][c["id"]] = true
 			T["ships_moved"] = true
 			if info.get("nav", false):
 				T["nav_used"] = true
@@ -282,6 +283,7 @@ func move_group(p: int, ids: Array, to: String, info: Dictionary, roads := false
 			for s in grp:
 				for c in carried(s["id"]):
 					c["h"] = dest
+					T["mv_this"][c["id"]] = true
 				s["h"] = dest
 				set_mv(s["id"], "moved")
 			T["ships_moved"] = true
@@ -362,6 +364,8 @@ func tactic_cards(p: int, kinds: String, attacker: bool, city_def: bool, attacki
 			continue
 		if t == "high_ground" and attacking_city and attacker:
 			continue
+		if kinds == "S" and t in ["scouts", "martyr"]:
+			continue
 		out.append(id)
 	return out
 
@@ -432,10 +436,13 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 			if u["on"] == -1 and u["t"] != "ship":
 				remove_unit(u)
 				killed_settlers += 1
+		T["battle_wins"] += 1
 		if killed_settlers > 0:
 			log_msg("%s elimina %d coloni di %s." % [pname(p), killed_settlers, pname(defender)])
-			await check_now(p, "battle", {"won": true, "attacker": true, "defender": defender, "killed": 0, "lost": 0,
-				"killed_settler": killed_settlers, "vs_army": false})
+		await check_now(p, "battle", {"won": true, "attacker": true, "defender": defender, "killed": 0, "lost": 0,
+			"killed_settler": killed_settlers, "vs_army": false, "start_att": att_army.size(), "start_def": 0,
+			"mine": att_army.size(), "theirs": 0, "opp": defender, "city": city_def,
+			"size": city_size(c) if not c.is_empty() else 0, "wonder": not c.is_empty() and not c["w"].is_empty(), "h": h})
 		if city_def:
 			T["last_def"] = 0
 			await capture_city(p, c, att, from_ship, false)
@@ -491,7 +498,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 		var Dd := _fighters(bt, "def")
 		# carte
 		var att_kinds := "A"
-		var def_kinds := "A" + ("F" if fortress else "")
+		var def_kinds: String = ("A" if not _fighters(bt, "def").is_empty() else "") + ("F" if fortress else "")
 		var ca := await _pick_tactic(p, att_kinds, true, false, city_def, bt)
 		var cd := ""
 		if defender >= 0:
@@ -689,6 +696,11 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 	if def_won:
 		for u in _side_units(bt, "att"):
 			remove_unit(u)
+	if not att_won and not def_won and not retreated:
+		# nessuno resta: con l'ultimo esercito se ne vanno anche i coloni
+		for u in units_at(h):
+			if u["t"] != "ship":
+				remove_unit(u)
 	var lost_att: int = killed[defender]
 	var lost_def: int = killed[p]
 	if def_won and fan.has(p) or att_won and fan.has(defender):
@@ -710,7 +722,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 			gain(defender, "gold", 1)
 	fx.emit("battle_end", {"h": h, "att_won": att_won})
 	var info := {"won": att_won, "attacker": true, "defender": defender, "killed": lost_def, "lost": lost_att,
-		"start_att": start_att, "start_def": start_def, "vs_army": start_def > 0, "city": city_def,
+		"start_att": start_att, "start_def": start_def, "mine": start_att, "theirs": start_def, "opp": defender, "vs_army": start_def > 0, "city": city_def,
 		"size": city_size(c) if not c.is_empty() else 0, "wonder": not c.is_empty() and not c["w"].is_empty(), "h": h}
 	await check_now(p, "battle", info)
 	if defender >= 0:
@@ -719,6 +731,9 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 		info2["attacker"] = false
 		info2["killed"] = lost_att
 		info2["lost"] = lost_def
+		info2["mine"] = start_def
+		info2["theirs"] = start_att
+		info2["opp"] = p
 		await check_now(defender, "battle", info2)
 	T["last_def"] = start_def
 	if att_won and city_def and city_at(h).get("id", -1) == c.get("id", -2):
@@ -946,10 +961,13 @@ func barbarian_attack(barb: Array, h: String) -> void:
 	battle = bt
 	log_msg("I Barbari attaccano %s!" % pname(q))
 	var won := false
+	var tie := false
 	var killed_b := 0
+	var n_def := defs.size()
 	while true:
 		bt["round"] += 1
-		var cd := await _pick_tactic(q, "A" + ("F" if fortress else ""), false, not c.is_empty(), false, bt)
+		var dk: String = ("A" if not _fighters(bt, "def").is_empty() else "") + ("F" if fortress else "")
+		var cd := await _pick_tactic(q, dk, false, not c.is_empty(), false, bt)
 		var tq: String = D.action_card(cd)[2] if cd != "" else ""
 		var A := _fighters(bt, "att")
 		var Dd := _fighters(bt, "def")
@@ -975,17 +993,27 @@ func barbarian_attack(barb: Array, h: String) -> void:
 			discard("action", cd, q)
 		A = _fighters(bt, "att")
 		Dd = _fighters(bt, "def")
+		if A.is_empty() and Dd.is_empty():
+			tie = true
+			break
 		if A.is_empty():
 			won = true
 			break
 		if Dd.is_empty():
 			break
 	battle = {}
+	if tie:
+		log_msg("Nessuno sopravvive allo scontro con i Barbari.")
+		for u in units_at(h):
+			if u["o"] == q and u["t"] != "ship":
+				remove_unit(u)
+		changed.emit()
+		return
 	if won:
 		gain(q, "gold", 1)
 		log_msg("%s respinge i Barbari (+1 Oro)." % pname(q))
 		await check_now(q, "battle", {"won": true, "attacker": false, "defender": -1, "killed": killed_b, "lost": 0,
-			"start_att": 0, "start_def": barb.size(), "vs_army": true, "h": h})
+			"start_att": barb.size(), "start_def": n_def, "mine": n_def, "theirs": barb.size(), "opp": -1, "vs_army": true, "h": h})
 	else:
 		for u in units_at(h):
 			if u["o"] == q and u["t"] != "ship":
