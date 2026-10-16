@@ -10,7 +10,7 @@ Poi avviare Godot con
 Applica una versione semplificata delle regole di firebase/database.rules.json:
 stanza creata una volta sola, posti occupabili solo se liberi (o dal proprio titolare o dall'host),
 ogni mossa del registro (acts/n) scrivibile una volta sola dal titolare del posto o dall'host.
-Le stanze di Manila stanno sotto manila/rooms.
+Le stanze stanno sotto <gioco>/rooms (Clash of Cultures: clash/rooms).
 """
 import gzip
 import json
@@ -70,11 +70,11 @@ def firebase_json(v):
 def allowed(uid, path, new, new_host=None):
     """Regole semplificate. path: lista di segmenti. new_host: host scritto nello stesso aggiornamento
     (come newData.parent() nelle regole vere)."""
-    if path[:2] != ["manila", "rooms"] or len(path) < 3:
+    if path[:2] != ["clash", "rooms"] or len(path) < 3:
         return False
     path = path[1:]
     code = path[1]
-    room = get_node(["manila", "rooms", code]) or {}
+    room = get_node(["clash", "rooms", code]) or {}
     host = room.get("host") or new_host
     if len(path) >= 3 and path[2] == "host":
         host = room.get("host")
@@ -98,7 +98,7 @@ def allowed(uid, path, new, new_host=None):
     if key == "acts" and len(path) == 4:
         if get_node(["manila"] + path) is not None or not isinstance(new, dict):
             return False
-        seat = get_node(["manila", "rooms", code, "seats", str(new.get("s"))]) or {}
+        seat = get_node(["clash", "rooms", code, "seats", str(new.get("s"))]) or {}
         return seat.get("uid") == uid or host == uid
     return False
 
@@ -148,7 +148,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(401, {"error": "Permission denied"})
         with LOCK:
             if method == "GET":
-                if path[:2] == ["manila", "rooms"] and len(path) < 3:
+                if path[:2] == ["clash", "rooms"] and len(path) < 3:
                     return self._send(401, {"error": "Permission denied"})
                 return self._send(200, firebase_json(get_node(path)))
             if method == "DELETE":

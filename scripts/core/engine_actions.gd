@@ -72,6 +72,8 @@ func setup(config: Dictionary) -> void:
 		players[p]["home"] = home
 		var c := new_city(p, home, 2)
 		new_unit(p, "settler", home)
+		if opts.get("short", false):
+			new_unit(p, "settler", home)
 	# mazzi
 	for a in D.ACTIONS:
 		decks["action"].append(a[0])

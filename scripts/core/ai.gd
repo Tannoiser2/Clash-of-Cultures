@@ -178,7 +178,7 @@ func _turn(eng, p: int) -> Dictionary:
 		# fondare
 		for u in eng.foundable_settlers(p):
 			var sv := spot_value(eng, p, u["h"])
-			if sv >= 4.5 or (sv >= 3.0 and eng.cities_of(p).size() < 3):
+			if sv >= 3.4 or (sv >= 2.5 and eng.cities_of(p).size() < 3):
 				cands.append([9.0 + sv * 0.3, {"t": "found", "u": u["id"]}])
 		# città
 		for c in eng.cities_of(p):
@@ -257,7 +257,7 @@ func _need_weights(eng, p: int) -> Dictionary:
 
 
 func _building_value(eng, p: int, c: Dictionary, b: String) -> float:
-	var v := 5.0
+	var v := 6.8
 	match b:
 		"temple":
 			v += 1.5
@@ -291,9 +291,9 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 		v += 4.0 * k
 	# coloni per espandersi
 	if budget > 0 and ncity + settlers < 7 and settlers < 2 and eng.supply_left(p, "settler") > 0:
-		comp["settler"] = 1
-		budget -= 1
-		v += 6.0 if ncity < 4 else 3.5
+		comp["settler"] = 2 if (budget >= 2 and ncity < 4 and settlers == 0) else 1
+		budget -= comp["settler"]
+		v += (7.0 if ncity < 4 else 4.0) + (comp["settler"] - 1) * 2.0
 	# un piccolo esercito per i barbari vicini
 	if budget > 0 and eng.has_adv(p, "Tactics") and _barb_threat(eng, p) > 0 and here < 3 and comp["infantry"] == 0:
 		comp["infantry"] = mini(budget, 2)
@@ -473,7 +473,7 @@ func _best_group_move(eng, p: int, moved: Dictionary) -> Array:
 func _settler_move(eng, p: int, ids: Array) -> Array:
 	var u: Dictionary = eng.units[ids[0]]
 	var here := spot_value(eng, p, u["h"]) if u["on"] == -1 else -99.0
-	if here >= 4.5:
+	if here >= 3.4:
 		return []
 	var tg: Dictionary = eng.move_targets(p, ids)
 	var best := []

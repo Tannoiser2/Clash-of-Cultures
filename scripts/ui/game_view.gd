@@ -784,6 +784,14 @@ func _on_decision(req: Dictionary) -> void:
 	match req["type"]:
 		"turn":
 			board.set_targets({})
+			# niente più da fare: il turno si chiude da solo
+			if engine.T["actions"] <= 0 and engine.free_options(p).is_empty() and engine.playable_cards(p).is_empty():
+				pending = req
+				refresh()
+				await get_tree().create_timer(0.6).timeout
+				if pending == req:
+					_provide({"t": "end"})
+				return
 		"move":
 			move_sel = []
 			if sel != "":

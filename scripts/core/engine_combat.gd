@@ -288,6 +288,10 @@ func move_group(p: int, ids: Array, to: String, info: Dictionary, roads := false
 		"explore":
 			var ri2 := region_of(to)
 			await explore(p, ri2, to)
+			if not is_land(to):
+				log_msg("La regione scoperta ha il mare in quella casella: le unità restano dove sono.")
+				changed.emit()
+				return
 			for u in grp:
 				u["h"] = to
 				set_mv(u["id"], "moved")
@@ -666,7 +670,14 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 			for u in _side_units(bt, "att"):
 				u["h"] = from
 				if from_ship:
-					pass
+					var placed := false
+					for sh in ships_at(from, p):
+						if carried(sh["id"]).size() < 2:
+							u["on"] = sh["id"]
+							placed = true
+							break
+					if not placed:
+						remove_unit(u)
 			log_msg("%s si ritira." % pname(p))
 			break
 	battle = {}
