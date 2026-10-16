@@ -306,15 +306,19 @@ func _player_row(p: int) -> Control:
 		var cl := UI.label("%s · %s" % [CivData.CIVS[ck]["it"], ("Capo: " + CivData.LEADERS[ld][0]) if ld != "" else "nessun Capo"], 15, UI.GOLD)
 		cl.clip_text = true
 		vb.add_child(cl)
-	var rf := HFlowContainer.new()
-	rf.add_theme_constant_override("h_separation", 4)
-	rf.add_theme_constant_override("v_separation", 4)
-	vb.add_child(rf)
+	# risorse sulla traccia da 0 a 7, come sulla plancia del gioco
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 3)
+	vb.add_child(grid)
 	for r in ["food", "wood", "ore", "idea", "gold"]:
-		var lim: int = engine.res_limit(p, r)
-		rf.add_child(_chip(r, "%d" % pl["res"][r] + ("/%d" % lim if r == "food" and lim < 7 else "")))
-	rf.add_child(_chip("mood", str(pl["mood"])))
-	rf.add_child(_chip("culture", str(pl["culture"])))
+		grid.add_child(_track(r, int(pl["res"][r]), engine.res_limit(p, r)))
+	var mc := HBoxContainer.new()
+	mc.add_theme_constant_override("separation", 10)
+	mc.add_child(_chip("mood", str(pl["mood"])))
+	mc.add_child(_chip("culture", str(pl["culture"])))
+	grid.add_child(mc)
 	var info := UI.label("Città %d · Avanzamenti %d · Carte %d · Obiettivi %d (fatti %d)%s" % [engine.cities_of(p).size(), pl["adv"].size(),
 		pl["hand"].size(), pl["obj"].size(), pl["done"].size(), (" · Meraviglie in mano %d" % pl["won"].size()) if pl["won"].size() > 0 else ""], 14, UI.PARCH)
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -420,6 +424,43 @@ func _show_civ(p: int) -> void:
 
 func _num(x: float) -> String:
 	return str(int(x)) if absf(x - roundf(x)) < 0.01 else "%.1f" % x
+
+
+const TRACK_COL := {"food": Color("#7fb84a"), "wood": Color("#a0652f"), "ore": Color("#a3a7ad"), "idea": Color("#9b59c8"), "gold": Color("#e6b83a")}
+
+
+## Traccia di una risorsa: 7 caselle, piene fino alla quantità posseduta; oltre il limite (Cibo senza
+## Magazzini, Idee con il Dogma) le caselle sono sbarrate.
+func _track(r: String, v: int, lim: int) -> Control:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 1)
+	var ic := TextureRect.new()
+	ic.texture = UI.tex("res://assets/icons/%s.png" % r)
+	ic.custom_minimum_size = Vector2(20, 20)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hb.add_child(ic)
+	for i in 7:
+		var cell := Panel.new()
+		cell.custom_minimum_size = Vector2(15, 18)
+		cell.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var st: StyleBoxFlat
+		if i < v:
+			st = UI.flat(TRACK_COL[r], TRACK_COL[r].darkened(0.45), 1, 3, 0)
+		elif i >= lim:
+			st = UI.flat(Color(0.25, 0.08, 0.06, 0.9), Color(0.45, 0.15, 0.1), 1, 3, 0)
+		else:
+			st = UI.flat(Color(0.32, 0.25, 0.17, 0.9), Color(0.5, 0.4, 0.28), 1, 3, 0)
+		cell.add_theme_stylebox_override("panel", st)
+		hb.add_child(cell)
+	var n := UI.label(" %d" % v, 14, UI.LIGHT, UI.font_bold)
+	n.custom_minimum_size = Vector2(16, 0)
+	hb.add_child(n)
+	hb.tooltip_text = "%s: %d (massimo %d)" % [D.RES_NAME[r], v, lim]
+	hb.mouse_filter = Control.MOUSE_FILTER_PASS
+	return hb
 
 
 func _chip(r: String, v: String) -> Control:
@@ -1159,55 +1200,80 @@ func _card_tip(id: String) -> String:
 	return id
 
 
-## Tabellone degli avanzamenti. pick: avanzamenti selezionabili; cb riceve il nome scelto.
+## Tabellone degli avanzamenti: la plancia originale del gioco (senza la traccia delle risorse) con un
+## cubetto del colore del giocatore sugli avanzamenti posseduti e una cornice dorata su quelli acquistabili.
+## pick: avanzamenti selezionabili; cb riceve il nome scelto.
+## Centri dei riquadri dei cubetti sulla plancia ritagliata (pixel dell'immagine 2048×1002).
+const ADV_BOARD := "res://assets/ui/advances_board.jpg"
+const ADV_COLS := [89.0, 422.0, 753.0, 1085.0, 1418.0, 1746.0]
+const ADV_ROWS := [[87.0, 198.0, 313.0, 430.0], [569.0, 682.0, 797.0, 911.0]]
+const ADV_BOARD_CATS := [["Agriculture", "Construction", "Maritime", "Education", "Warfare", "Spirituality"],
+	["Economy", "Traditions", "Science", "Democracy", "Autocracy", "Theocracy"]]
+
+
 func _show_advances(p: int, pick: Array, cb: Callable, title_text := "", closable := true) -> void:
-	var vb := _open_modal(title_text if title_text != "" else "Avanzamenti di %s" % engine.pname(p), 1500)
-	var leg := UI.label("Oro = posseduto · bordo chiaro = si può comprare · bordo giallo/blu = dà +1 Umore / +1 Cultura. Passa sopra per leggere l'effetto.", 15, UI.INK2)
+	var W := 1480.0
+	var k := W / 2048.0
+	var vb := _open_modal(title_text if title_text != "" else "Avanzamenti di %s" % engine.pname(p), W)
+	var leg := UI.label("Cubetto = posseduto · cornice dorata = si può comprare. Passa sopra a un avanzamento per leggerlo in italiano.", 15, UI.INK2)
 	vb.add_child(leg)
-	var grid := GridContainer.new()
-	grid.columns = 6
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
-	vb.add_child(grid)
-	for cat in D.CATEGORIES:
-		var box := PanelContainer.new()
-		var gov: bool = cat in D.GOVERNMENTS
-		box.add_theme_stylebox_override("panel", UI.flat(Color("#3a2614") if not gov else Color("#5a3a10"), UI.GOLD_DARK, 1, 6, 6))
-		var bvb := VBoxContainer.new()
-		bvb.add_theme_constant_override("separation", 4)
-		box.add_child(bvb)
-		var ttl := UI.label(D.CAT_NAME[cat] + ("  (serve %s)" % D.adv_it(D.GOV_REQ[cat]) if gov else ""), 15, UI.GOLD, UI.font_title)
-		bvb.add_child(ttl)
-		for a in D.ADV[cat]:
-			var name: String = a[0]
-			var owned: bool = engine.players[p]["adv"].has(name)
-			var b := Button.new()
-			b.text = a[1]
-			b.custom_minimum_size = Vector2(228, 34)
-			b.add_theme_font_override("font", UI.font_bold)
-			b.add_theme_font_size_override("font_size", 15)
-			var border := Color("#e0c45a") if a[2] == "m" else (Color("#6fa0ff") if a[2] == "c" else Color("#6b5030"))
-			var can: bool = pick.has(name)
-			var bg := Color("#c99a43") if owned else (Color("#7a5228") if can else Color("#2a1c10"))
-			var stl := UI.flat(bg, border, 3 if a[2] != "" else 1, 5, 4)
-			b.add_theme_stylebox_override("normal", stl)
-			b.add_theme_stylebox_override("hover", UI.flat(bg.lightened(0.15), UI.GOLD, 3, 5, 4))
-			b.add_theme_stylebox_override("pressed", stl)
-			b.add_theme_stylebox_override("disabled", stl)
-			b.add_theme_color_override("font_color", UI.DARK if owned else UI.LIGHT)
-			b.add_theme_color_override("font_disabled_color", UI.DARK if owned else Color(0.62, 0.55, 0.45))
-			var cost := ""
-			if can and not owned and engine.cur == p:
-				var fc: int = engine.adv_food_cost(p, name)
-				cost = "\nCosto: %s" % ("gratis" if fc == 0 else "2 Cibo (o Idee/Oro)")
-			b.tooltip_text = "%s\n%s%s" % [a[1], a[3], cost]
-			b.disabled = not can
-			var nm := name
-			b.pressed.connect(func():
-				_clear_modal()
-				cb.call(nm))
-			bvb.add_child(b)
-		grid.add_child(box)
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(W, 1002.0 * k)
+	vb.add_child(holder)
+	var board_img := TextureRect.new()
+	board_img.texture = UI.tex(ADV_BOARD)
+	board_img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	board_img.stretch_mode = TextureRect.STRETCH_SCALE
+	board_img.size = Vector2(W, 1002.0 * k)
+	board_img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(board_img)
+	var col: Color = UI.pcol(p)
+	for row in 2:
+		for ci in 6:
+			var cat: String = ADV_BOARD_CATS[row][ci]
+			for ai in 4:
+				var a: Array = D.ADV[cat][ai]
+				var name: String = a[0]
+				var owned: bool = engine.players[p]["adv"].has(name)
+				var can: bool = pick.has(name)
+				var cx: float = ADV_COLS[ci] * k
+				var cy: float = ADV_ROWS[row][ai] * k
+				# zona cliccabile: tutta la voce dell'avanzamento
+				var b := Button.new()
+				b.position = Vector2(cx - 46.0 * k, cy - 50.0 * k)
+				b.size = Vector2(325.0 * k, 100.0 * k)
+				b.focus_mode = Control.FOCUS_NONE
+				var clear := StyleBoxEmpty.new()
+				var gold_b := UI.flat(Color(1.0, 0.8, 0.2, 0.10), Color("#f2c84b"), 3, 6, 0)
+				var gold_h := UI.flat(Color(1.0, 0.85, 0.3, 0.28), Color("#ffe07a"), 4, 6, 0)
+				b.add_theme_stylebox_override("normal", gold_b if can else clear)
+				b.add_theme_stylebox_override("hover", gold_h if can else UI.flat(Color(1, 1, 1, 0.06), Color(1, 1, 1, 0.2), 1, 6, 0))
+				b.add_theme_stylebox_override("pressed", gold_h if can else clear)
+				b.add_theme_stylebox_override("disabled", clear)
+				b.add_theme_stylebox_override("focus", clear)
+				var cost := ""
+				if can and not owned and engine.cur == p:
+					var fc: int = engine.adv_food_cost(p, name)
+					cost = "\nCosto: %s" % ("gratis" if fc == 0 else "2 Cibo (o Idee/Oro)")
+				var gov := ""
+				if cat in D.GOVERNMENTS and ai == 0:
+					gov = "\nServe %s." % D.adv_it(D.GOV_REQ[cat])
+				b.tooltip_text = "%s (%s)\n%s%s%s" % [a[1], D.CAT_NAME[cat], a[3], gov, cost]
+				b.disabled = not can
+				b.mouse_filter = Control.MOUSE_FILTER_STOP
+				var nm := name
+				b.pressed.connect(func():
+					_clear_modal()
+					cb.call(nm))
+				holder.add_child(b)
+				if owned:
+					var cube := Panel.new()
+					var cs := 40.0 * k
+					cube.position = Vector2(cx - cs / 2.0, cy - cs / 2.0)
+					cube.size = Vector2(cs, cs)
+					cube.add_theme_stylebox_override("panel", UI.flat(col, col.darkened(0.6), 2, 3, 0))
+					cube.mouse_filter = Control.MOUSE_FILTER_IGNORE
+					holder.add_child(cube)
 	if closable:
 		_close_button(vb)
 

@@ -174,6 +174,10 @@ func _civ_shots(seats: Array) -> void:
 	g.board.t_yaw += 2.0
 	await wait(30)
 	await shot("civ_city_side2")
+	g._show_advances(0, g.engine.buyable_advances(0), func(a): pass)
+	await wait(8)
+	await shot("civ_advances")
+	g._clear_modal()
 	g._show_civ(0)
 	await wait(5)
 	await shot("civ_board")

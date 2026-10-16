@@ -185,6 +185,9 @@ cov = Image.open(os.path.join(SRC, 'cover.webp')).convert('RGB')
 cov.save(os.path.join(uidir, 'cover.jpg'), quality=90)
 adv = img('C6828BB1774415DAF63B002A').convert('RGB')
 adv.resize((2048, round(2048 * adv.size[1] / adv.size[0])), Image.LANCZOS).save(os.path.join(uidir, 'player_board.jpg'), quality=86)
+# plancia degli avanzamenti senza la traccia delle risorse in alto (per la finestra degli avanzamenti)
+pb = Image.open(os.path.join(uidir, 'player_board.jpg'))
+pb.crop((0, 329, 2048, pb.size[1])).save(os.path.join(uidir, 'advances_board.jpg'), quality=88)
 
 # ---------------------------------------------------------------- dati
 lay = json.load(open(os.path.join(SRC, 'layouts.json')))
