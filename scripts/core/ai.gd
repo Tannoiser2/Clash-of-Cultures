@@ -110,13 +110,13 @@ func _barb_threat(eng, p: int) -> int:
 func _city_threat(eng, p: int, c: Dictionary) -> int:
 	var k := 0
 	for u in eng.units.values():
-		if u["o"] != p and eng.is_army(u) and eng.hdist(u["h"], c["h"]) <= 3:
+		if u["o"] != p and eng.is_army(u) and eng.hdist(u["h"], c["h"]) <= 2:
 			k += 1
 	# le città barbare vicine generano rinforzi
 	for b in eng.cities_of(-1):
-		if eng.hdist(b["h"], c["h"]) <= 3:
+		if eng.hdist(b["h"], c["h"]) <= 2:
 			k += 1
-	return k
+	return mini(k, 3)
 
 
 ## Bontà di una casella per fondarci una città.
@@ -327,7 +327,7 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 	var v := 0.0
 	var budget := size
 	# difesa
-	if threat > here and eng.supply_left(p, "infantry") > 0:
+	if threat > here and here < 3 and eng.supply_left(p, "infantry") > 0:
 		var k := mini(budget, mini(threat - here + 1, 4 - here))
 		comp["infantry"] = k
 		budget -= k
@@ -577,15 +577,15 @@ func _army_move(eng, p: int, ids: Array) -> Array:
 			if guarding and mine <= _city_threat(eng, p, here_city):
 				v -= 4.0
 		elif info["kind"] == "explore":
-			v = 2.5 if eng.age <= 3 else 1.0
+			v = 2.2 if eng.age <= 2 else 0.5
 		elif info["kind"] == "land":
-			# avvicinarsi a un bersaglio barbaro
-			for b in eng.units_of(-1):
-				if eng.is_army(b) or true:
-					var d_now: int = eng.hdist(u["h"], b["h"])
-					var d_new: int = eng.hdist(k, b["h"])
-					if d_new < d_now and d_now <= 4:
-						v = maxf(v, 1.6)
+			# avvicinarsi a una città barbara debole
+			for b in eng.cities_of(-1):
+				var d_now: int = eng.hdist(u["h"], b["h"])
+				var d_new: int = eng.hdist(k, b["h"])
+				var defs: int = eng.armies_at(b["h"], -1).size()
+				if d_new < d_now and d_now <= 3 and mine >= defs + 1 and not guarding:
+					v = maxf(v, 2.6)
 			var cc: Dictionary = eng.city_at(k)
 			if not cc.is_empty() and cc["o"] == p and _city_threat(eng, p, cc) > eng.armies_at(k, p).size():
 				v = maxf(v, 3.5)

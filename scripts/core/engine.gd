@@ -65,6 +65,8 @@ func do_turn(p: int) -> void:
 			break
 		if m.get("t", "") == "end":
 			break
+		if OS.get_environment("COC_STATS") != "":
+			print("ACT %s %d" % [m.get("t", "") + ("_" + str(m.get("what", m.get("id", ""))) if m.get("t", "") in ["free", "card"] else ""), age])
 		var ok = await apply_move(p, m)
 		if not ok:
 			if players[p]["ai"] or online != null and p != online.seat:
