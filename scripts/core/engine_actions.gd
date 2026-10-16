@@ -13,6 +13,7 @@ func setup(config: Dictionary) -> void:
 	else:
 		rng.randomize()
 	opts = config.get("opts", {}).duplicate()
+	exp = bool(opts.get("civ", false))
 	ai_delay = float(config.get("ai_delay", 0.0))
 	players.clear()
 	for st in config["seats"]:
@@ -21,6 +22,23 @@ func setup(config: Dictionary) -> void:
 			"mood": 0, "culture": 0, "adv": ["Farming", "Mining"], "tracker": 3, "hand": [], "obj": [],
 			"won": [], "done": [], "vp_extra": 0.0, "home": "", "events": [], "gov_cubes": 0})
 	n = players.size()
+	if exp:
+		# espansione Civiltà: una civiltà a caso per giocatore, con i suoi 3 capi
+		var civs: Array = CivData.CIVS.keys()
+		civs.sort()
+		shuffle(civs)
+		for p in n:
+			var ck: String = civs[p]
+			players[p]["civ"] = ck
+			players[p]["leaders_avail"] = CivData.CIVS[ck]["leaders"].duplicate()
+			players[p]["leader"] = ""
+			players[p]["leaders_ever"] = 0
+			players[p]["killed_leaders"] = []
+			players[p]["captives"] = 0
+			players[p]["no_leader"] = false
+			# i nomi predefiniti del menu diventano quelli della civiltà assegnata
+			if players[p]["name"] in ["Roma", "Persia", "Egitto", "Cartagine", ""]:
+				players[p]["name"] = CivData.CIVS[ck]["it"]
 	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/data/tiles.json"))
 	var lay: Array = data["layouts"][LAYOUT_FOR[n]]
 	var tiles: Array = data["tiles"]
@@ -67,7 +85,12 @@ func setup(config: Dictionary) -> void:
 			if d < bd:
 				bd = d
 				best = oi
-		_reveal_region(ri, "start", best)
+		var stile := "start"
+		if exp:
+			var alt: String = CivData.CIVS[players[p]["civ"]]["tile"]
+			if alt != "" and tile_ter.has(alt):
+				stile = alt
+		_reveal_region(ri, stile, best)
 		var home: String = reg["slots"]["T"]
 		players[p]["home"] = home
 		var c := new_city(p, home, 2)
@@ -79,8 +102,12 @@ func setup(config: Dictionary) -> void:
 		decks["action"].append(a[0])
 	for o in D.OBJECTIVES:
 		decks["objective"].append("o%d" % o[0])
+	if exp:
+		for o in D.OBJECTIVES_EXP:
+			decks["objective"].append("o%d" % o[0])
 	for e in D.EVENTS:
-		decks["event"].append(e)
+		if exp or int(e.substr(1)) <= 38:
+			decks["event"].append(e)
 	for w in D.WONDERS:
 		decks["wonder"].append(w)
 	for k in decks:
@@ -279,7 +306,7 @@ func spend_action(free: bool) -> void:
 
 func can_buy_adv(p: int, a: String) -> bool:
 	var info := D.adv_info(a)
-	if info.is_empty() or players[p]["adv"].has(a):
+	if info.is_empty() or players[p]["adv"].has(a) or info["cat"] == "Civ":
 		return false
 	var cat: String = info["cat"]
 	var top: String = D.ADV[cat][0][0]
@@ -302,6 +329,10 @@ func adv_food_cost(p: int, a: String) -> int:
 		return 0
 	if info["cat"] == "Science" and has_adv(p, "Priesthood") and not T.get("priesthood", false):
 		return 0
+	if a == "Sanitation" and civ_adv(p, "Aqueducts"):
+		return 0
+	if info["cat"] == "Spirituality" and civ_adv(p, "Ballcourts") and not T.get("ballcourts", false):
+		return 1
 	return 2
 
 
@@ -336,6 +367,10 @@ func gain_advance(p: int, a: String, from_tracker := true) -> void:
 			players[p]["res"]["idea"] = mini(players[p]["res"]["idea"], 2)
 	if info["cat"] == "Science" and has_adv(p, "Philosophy") and a != "Philosophy":
 		gain(p, "idea", 1)
+	if exp and info["cat"] != "Civ":
+		_grant_civ_advances(p, a, info["cat"] in D.GOVERNMENTS)
+	if exp and info["cat"] in D.GOVERNMENTS and int(players[p].get("anarchy", 0)) > 0:
+		players[p]["anarchy"] -= 1
 	fx.emit("advance", {"p": p, "a": a})
 	changed.emit()
 	if from_tracker:
@@ -345,12 +380,30 @@ func gain_advance(p: int, a: String, from_tracker := true) -> void:
 			await resolve_event(p)
 
 
+## Espansione: gli avanzamenti di civiltà collegati arrivano subito (cubetto dalla riserva, nessun evento).
+func _grant_civ_advances(p: int, a: String, gov: bool) -> void:
+	var ck: String = players[p].get("civ", "")
+	if ck == "":
+		return
+	for ca in CivData.CIVS[ck]["adv"]:
+		if players[p]["adv"].has(ca[0]):
+			continue
+		if ca[2] == a or (ca[2] == "gov" and gov):
+			players[p]["adv"].append(ca[0])
+			log_msg("%s ottiene l'avanzamento di civiltà %s." % [pname(p), ca[1]])
+			fx.emit("advance", {"p": p, "a": ca[0]})
+			if ca[0] == "Ziggurats":
+				pass
+
+
 func do_advance(p: int, a: String, free_food := false, from_tracker := true) -> bool:
 	if not can_buy_adv(p, a):
 		return false
 	var fc := 0 if free_food else adv_food_cost(p, a)
 	if fc == 0 and not free_food and D.adv_info(a)["cat"] == "Science" and has_adv(p, "Priesthood") and not (a in ["Engineering", "Roads", "Navigation", "Cartography"]):
 		T["priesthood"] = true
+	if fc == 1 and not free_food and civ_adv(p, "Ballcourts") and D.adv_info(a)["cat"] == "Spirituality":
+		T["ballcourts"] = true
 	var paid := {}
 	if fc > 0:
 		if not can_pay(p, {"food": fc}, ["idea"]):
@@ -366,8 +419,25 @@ func do_advance(p: int, a: String, free_food := false, from_tracker := true) -> 
 
 # ------------------------------------------------------------------ fondazione
 
+## Razziatori (Unni): i coloni nemici entro 2 caselle da un esercito unno, se soli, non fondano né commerciano.
+func raided(p: int, k: String) -> bool:
+	if not city_at(k).is_empty() or not armies_at(k, p).is_empty():
+		return false
+	for q in n:
+		if q == p or not civ_adv(q, "Raiders"):
+			continue
+		for u in units_of(q):
+			if is_army(u) and hdist(u["h"], k) <= 2:
+				return true
+	return false
+
+
 func can_found_at(p: int, k: String) -> bool:
-	if not is_land(k) or ter(k) == "barren" or hexes[k]["exhausted"]:
+	if not is_land(k) or hexes[k]["exhausted"]:
+		return false
+	if ter(k) == "barren" and not civ_adv(p, "Flood Plains"):
+		return false
+	if exp and raided(p, k):
 		return false
 	if not city_at(k).is_empty():
 		return false
@@ -395,6 +465,10 @@ func do_found(p: int, uid: int) -> bool:
 	units.erase(uid)
 	new_city(p, k, 1)
 	log_msg("%s fonda una città (%s)." % [pname(p), D.TER_NAME[ter(k)]])
+	if civ_adv(p, "Aztec Gold"):
+		gain(p, "gold", 1)
+	if civ_adv(p, "Stelas"):
+		gain(p, "culture", 1)
 	fx.emit("found", {"h": k})
 	changed.emit()
 	await check_now(p, "found", {"h": k})
@@ -441,10 +515,16 @@ func _collect_res(p: int, k: String, c: Dictionary, gardens: bool) -> Array:
 		"forest":
 			return ["wood"] if has_adv(p, "Farming") else []
 		"mountain":
+			if civ_adv(p, "Terracing"):
+				return ["ore", "wood", "food"]
 			return ["ore"] if has_adv(p, "Mining") else []
 		"barren":
+			if civ_adv(p, "Flood Plains"):
+				return ["food", "wood"]
 			return ["food"] if has_adv(p, "Irrigation") else []
 		"sea":
+			if exp and pirate_blocked(k, p):
+				return []
 			var o := []
 			if has_adv(p, "Fishing"):
 				o.append("food")
@@ -526,11 +606,24 @@ func do_collect(p: int, cid: int, picks: Array, card := "", metal := false, free
 	if has_adv(p, "Public Education") and c["b"].has("academy") and not T["pubed"]:
 		T["pubed"] = true
 		got["idea"] = got.get("idea", 0) + 1
+	if exp:
+		if civ_adv(p, "Rice Paddies"):
+			var extra := 0
+			for k in [c["h"]] + neighbors(c["h"]):
+				if extra < 2 and ter(k) == "plains" and city_at(k).is_empty() and not land_units_at(k, p).filter(func(u): return u["t"] == "settler").is_empty():
+					extra += 1
+			if extra > 0:
+				got["food"] = got.get("food", 0) + extra
+		if civ_adv(p, "Canals") and got.get("food", 0) == 1:
+			got["food"] = 2
+		if civ_adv(p, "Pottery") and got.get("food", 0) >= 3 and not T.get("pottery", false):
+			T["pottery"] = true
+			got["culture"] = got.get("culture", 0) + 1
 	var parts := []
 	for r in got:
 		var g := gain(p, r, got[r])
 		if got[r] > 0:
-			parts.append("%d %s" % [got[r], D.RES_NAME[r]] + ("" if g == got[r] else " (%d persi per il limite)" % (got[r] - g)))
+			parts.append("%d %s" % [got[r], D.RES_NAME.get(r, "Cultura")] + ("" if g == got[r] else " (%d persi per il limite)" % (got[r] - g)))
 	T["collects"] += 1
 	log_msg("%s raccoglie: %s." % [pname(p), ", ".join(parts)])
 	await _lighthouse(p, c)
@@ -587,7 +680,7 @@ func auto_collect(c: Dictionary, weights := {}) -> Array:
 # ------------------------------------------------------------------ costruzione
 
 func can_build(p: int, c: Dictionary, b: String, ignore_activation := false) -> String:
-	if not b in D.BUILDINGS:
+	if not b in bld_list():
 		return "edificio sconosciuto"
 	if c["o"] != p:
 		return "non è tua"
@@ -612,10 +705,16 @@ func can_build(p: int, c: Dictionary, b: String, ignore_activation := false) -> 
 	return ""
 
 
-func build_cost(p: int, b: String) -> Dictionary:
+func build_cost(p: int, b: String, c := {}) -> Dictionary:
 	var cost := D.BUILD_COST.duplicate()
 	if b == "temple" and has_adv(p, "State Religion") and not T.get("statrel", false):
 		cost.erase("food")
+	if exp and not c.is_empty():
+		# Imhotep: Accademia/Osservatorio senza Cibo né Legno; Hammurabi: Fortezza senza Cibo né Legno
+		if (b in ["academy", "observatory"] and leader_is(p, "l17") and leader_at(p, c["h"])) or \
+				(b == "fortress" and leader_is(p, "l04") and leader_at(p, c["h"])):
+			cost.erase("food")
+			cost.erase("wood")
 	return cost
 
 
@@ -626,7 +725,7 @@ func do_build(p: int, cid: int, b: String, free_cost := false, activation := tru
 	var c: Dictionary = cities[cid]
 	if can_build(p, c, b, not activation) != "":
 		return false
-	var cost := {} if free_cost else build_cost(p, b)
+	var cost := {} if free_cost else build_cost(p, b, c)
 	if not can_pay(p, cost):
 		return false
 	if b == "temple" and not cost.has("food") and not free_cost:
@@ -640,8 +739,15 @@ func do_build(p: int, cid: int, b: String, free_cost := false, activation := tru
 		var seas := adjacent_sea(c["h"])
 		c["port"] = await choose_hex(p, "Dove metti il Porto?", seas)
 	c["b"][b] = p
-	log_msg("%s costruisce %s." % [pname(p), "un " + D.B_NAME[b] if b != "academy" else "un'Accademia"])
+	log_msg("%s costruisce %s." % [pname(p), D.B_ART.get(b, "un ") + D.B_NAME[b]])
 	match b:
+		"observatory":
+			draw_action(p)
+		"obelisk":
+			if civ_adv(p, "Stelas"):
+				gain(p, "culture", 1)
+			if leader_is(p, "l18") and leader_at(p, c["h"]):
+				gain(p, "culture", 1)
 		"academy":
 			gain(p, "idea", 2)
 		"temple":
@@ -669,13 +775,88 @@ func can_recruit_any(c: Dictionary) -> bool:
 	return can_activate(c)
 
 
-func recruit_cost(p: int, comp: Dictionary, sanit: bool, draft: bool) -> Dictionary:
+## Dove si possono reclutare le unità dell'espansione.
+func recruit_block(p: int, c: Dictionary, t: String) -> String:
+	match t:
+		"cavalry":
+			if c["b"].has("market"):
+				return ""
+			if civ_adv(p, "Mounted Archers") and city_size(c) == 1:
+				return ""
+			if civ_adv(p, "Horsemanship") and c["b"].has("fortress"):
+				return ""
+			if civ_adv(p, "Provinces") and hdist(c["h"], players[p]["home"]) >= 3:
+				return ""
+			return "serve un Mercato"
+		"elephant":
+			if c["b"].has("market"):
+				return ""
+			if civ_adv(p, "Indian Elephants") and ter(c["h"]) == "forest":
+				return ""
+			if civ_adv(p, "Elephants"):
+				for x in neighbors(c["h"]):
+					if ter(x) == "barren":
+						return ""
+			if civ_adv(p, "Warbeasts"):
+				return ""
+			return "serve un Mercato"
+		"leader":
+			if players[p].get("no_leader", false):
+				return "niente più Capi (Tu quoque, Brute?)"
+			if players[p].get("leaders_avail", []).is_empty():
+				return "nessun Capo disponibile"
+			return ""
+	return ""
+
+
+func can_recruit_type(p: int, c: Dictionary, t: String) -> bool:
+	return recruit_block(p, c, t) == ""
+
+
+## Elefanti reclutabili qui solo grazie alle Bestie da guerra (costo con Oro).
+func _warbeasts_only(p: int, c: Dictionary) -> bool:
+	if c["b"].has("market") or not civ_adv(p, "Warbeasts"):
+		return false
+	if civ_adv(p, "Indian Elephants") and ter(c["h"]) == "forest":
+		return false
+	if civ_adv(p, "Elephants"):
+		for x in neighbors(c["h"]):
+			if ter(x) == "barren":
+				return false
+	return true
+
+
+## Reclutando un Capo: si sceglie una carta fra quelle rimaste (il vecchio Capo viene scartato).
+func _choose_leader(p: int) -> void:
+	var old := leader_unit(p)
+	if not old.is_empty():
+		remove_unit(old)
+	var av: Array = players[p]["leaders_avail"]
+	var labels := []
+	for code in av:
+		var L: Array = CivData.LEADERS[code]
+		labels.append("%s — %s: %s / %s: %s" % [L[0], L[3], L[4], L[5], L[6]])
+	var i := 0
+	if av.size() > 1:
+		i = await choose(p, "Quale Capo recluti?", labels, {"force": true, "leaders": av})
+	var code: String = av[i]
+	av.erase(code)
+	players[p]["leader"] = code
+	players[p]["leaders_ever"] += 1
+	log_msg("%s sceglie come Capo %s." % [pname(p), CivData.LEADERS[code][0]])
+
+
+func recruit_cost(p: int, comp: Dictionary, sanit: bool, draft: bool, c := {}) -> Dictionary:
 	var cost := {}
 	for t in comp:
 		var k: int = comp[t]
 		if t == "settler" and sanit and k > 0:
 			k -= 1
 			cost["mood"] = cost.get("mood", 0) + 1
+		if t == "elephant" and k > 0 and not c.is_empty() and _warbeasts_only(p, c):
+			# Bestie da guerra: senza Mercato ogni Elefante costa 1 Oro al posto di 1 Cibo
+			cost["gold"] = cost.get("gold", 0) + k
+			cost["food"] = cost.get("food", 0) - k
 		if t == "infantry" and draft and k > 0:
 			k -= 1
 			cost["mood"] = cost.get("mood", 0) + (2 if has_adv(p, "Civil Liberties") else 1)
@@ -691,8 +872,10 @@ func valid_recruit(p: int, c: Dictionary, comp: Dictionary, sanit := false, draf
 		return "città già attivata"
 	var tot := 0
 	for t in comp:
-		if not t in D.UNITS:
+		if not t in unit_list():
 			return "unità sconosciuta"
+		if comp[t] > 0 and not can_recruit_type(p, c, t):
+			return "%s: %s" % [D.U_NAME[t], recruit_block(p, c, t)]
 		if comp[t] < 0:
 			return "numero non valido"
 		tot += comp[t]
@@ -705,15 +888,23 @@ func valid_recruit(p: int, c: Dictionary, comp: Dictionary, sanit := false, draf
 	for t in comp:
 		if comp[t] > 0 and supply_left(p, t) < comp[t] and units_of(p, t).size() < comp[t]:
 			return "pezzi esauriti"
-	if comp.get("infantry", 0) > 0:
+	var n_army := 0
+	for t in comp:
+		if t in D.ARMY:
+			n_army += comp[t]
+	if comp.get("leader", 0) > 1:
+		return "un solo Capo"
+	if n_army > 0:
 		var here := armies_at(c["h"], p).size()
-		if here + comp["infantry"] > 4:
-			return "massimo 4 eserciti per casella"
+		if comp.get("leader", 0) > 0 and leader_at(p, c["h"]):
+			here -= 1
+		if here + n_army > 4:
+			return "massimo 4 unità d'armata per casella"
 	if sanit and (not has_adv(p, "Sanitation") or comp.get("settler", 0) == 0):
 		return "Igiene non disponibile"
 	if draft and (not has_adv(p, "Draft") or comp.get("infantry", 0) == 0):
 		return "Leva non disponibile"
-	if not can_pay(p, recruit_cost(p, comp, sanit, draft)):
+	if not can_pay(p, recruit_cost(p, comp, sanit, draft, c)):
 		return "risorse insufficienti"
 	return ""
 
@@ -724,12 +915,14 @@ func do_recruit(p: int, cid: int, comp: Dictionary, sanit := false, draft := fal
 	var c: Dictionary = cities[cid]
 	if valid_recruit(p, c, comp, sanit, draft) != "":
 		return false
-	var paid := pay(p, recruit_cost(p, comp, sanit, draft))
+	var paid := pay(p, recruit_cost(p, comp, sanit, draft, c))
 	activate(c)
 	spend_action(false)
 	var parts := []
-	for t in ["settler", "infantry", "ship"]:
+	for t in unit_list():
 		var k: int = comp.get(t, 0)
+		if t == "leader" and k > 0:
+			await _choose_leader(p)
 		for i in k:
 			if supply_left(p, t) <= 0:
 				# pezzo spostato dal tabellone
@@ -749,7 +942,13 @@ func do_recruit(p: int, cid: int, comp: Dictionary, sanit := false, draft := fal
 			if paid.get(r, 0) > 0:
 				gain(p, r, 1)
 				break
-	if has_adv(p, "Nationalism") and (comp.get("infantry", 0) > 0 or comp.get("ship", 0) > 0):
+	if civ_adv(p, "Formal Training") and c["b"].has("academy"):
+		gain(p, "idea", 1)
+	var army_rec: bool = comp.get("ship", 0) > 0
+	for t in D.ARMY:
+		if comp.get(t, 0) > 0:
+			army_rec = true
+	if has_adv(p, "Nationalism") and army_rec:
 		var i := await choose(p, "Nazionalismo: ricevi…", ["+1 Umore", "+1 Cultura"], {"force": true})
 		gain(p, "mood" if i == 0 else "culture", 1)
 	fx.emit("recruit", {"h": c["h"]})
@@ -798,7 +997,8 @@ func can_build_wonder(p: int, c: Dictionary, w: String, discount := 0) -> String
 	if not has_adv(p, "Engineering"):
 		return "serve Ingegneria"
 	var info: Dictionary = D.WONDERS[w]
-	if not has_adv(p, info["req"]):
+	var arch: int = int(players[p].get("architect", 0))
+	if not has_adv(p, info["req"]) and arch <= 0:
 		return "serve " + D.adv_it(info["req"])
 	if c["o"] != p or c["mood"] != 2:
 		return "serve una tua città Felice"
@@ -811,7 +1011,7 @@ func can_build_wonder(p: int, c: Dictionary, w: String, discount := 0) -> String
 	if not can_activate(c):
 		return "città già attivata"
 	var cost: Dictionary = info["cost"].duplicate()
-	cost["culture"] = maxi(0, cost["culture"] - discount)
+	cost["culture"] = maxi(0, cost["culture"] - discount - arch)
 	if not plan_payment_wonder(p, cost):
 		return "risorse insufficienti"
 	return ""
@@ -833,6 +1033,11 @@ func do_wonder(p: int, cid: int, w: String) -> bool:
 	if can_build_wonder(p, c, w) != "":
 		return false
 	var cost: Dictionary = D.WONDERS[w]["cost"].duplicate()
+	if int(players[p].get("architect", 0)) > 0:
+		cost["culture"] = maxi(0, cost["culture"] - int(players[p]["architect"]))
+		players[p]["architect"] = 0
+		discards["event"].append("e55")
+		log_msg("Il Grande architetto dirige i lavori.")
 	lose(p, "culture", cost["culture"])
 	cost.erase("culture")
 	pay(p, cost)
@@ -939,8 +1144,12 @@ func influence_buildings(p: int, target: Dictionary) -> Array:
 	var out := []
 	if target["o"] >= 0 and target["o"] != p and has_adv(target["o"], "Monuments") and not target["w"].is_empty():
 		return out
+	if target["o"] >= 0 and leader_is(target["o"], "l42") and leader_at(target["o"], target["h"]):
+		return out
 	for b in target["b"]:
-		if target["b"][b] == p:
+		if target["b"][b] == p or b == "obelisk":
+			continue
+		if exp and b == "port" and civ_adv(target["b"][b], "City Independence"):
 			continue
 		if supply_left(p, b) > 0:
 			out.append(b)
@@ -966,7 +1175,8 @@ func influence_options(p: int) -> Array:
 			var d := dist_revealed(src["h"], tg["h"])
 			if d > 50:
 				continue
-			var need := maxi(0, d - city_size(src))
+			var rng_src := city_size(src) + (1 if leader_is(p, "l16") and leader_at(p, src["h"]) else 0)
+			var need := maxi(0, d - rng_src)
 			if need > 0 and (self_only or boost_blocked(p, tg)):
 				continue
 			if need > res(p, "culture"):
@@ -1005,6 +1215,10 @@ func do_influence(p: int, from_id: int, to_id: int, b: String, free := false) ->
 		T["infl_ok"] = true
 		if has_adv(p, "Conversion"):
 			gain(p, "culture", 1)
+		if civ_adv(p, "Code of Laws") and players[p]["hand"].size() <= 4:
+			draw_action(p)
+		if leader_is(p, "l35") and leader_at(p, cities[from_id]["h"]):
+			gain(p, "mood", 1)
 		log_msg("Riuscito! %s di %s passa sotto l'influenza di %s." % [D.B_NAME[b], pname(prev), pname(p)])
 		fx.emit("influence", {"h": tg["h"], "ok": true})
 	else:
@@ -1021,18 +1235,32 @@ func trade_routes(p: int) -> Dictionary:
 	var srcs := []
 	for u in units_of(p):
 		if u["t"] in ["settler", "ship"]:
+			if exp and u["t"] == "ship" and pirate_blocked(u["h"], p):
+				continue
+			if exp and u["t"] == "settler" and raided(p, u["h"]):
+				continue
 			srcs.append(u)
+		elif u["t"] == "elephant" and civ_adv(p, "Indian Elephants") and u["on"] == -1:
+			var ec := city_at(u["h"])
+			if not ec.is_empty() and ec["o"] == p and ec["mood"] > 0:
+				srcs.append(u)
 	var targets := []
 	for id in cities:
 		var c: Dictionary = cities[id]
 		if c["o"] >= 0 and c["o"] != p and c["mood"] > 0:
 			targets.append(c)
+		elif c["o"] == -1 and c["mood"] > 0 and civ_adv(p, "Tribal Trade"):
+			targets.append(c)
 	# accoppiamento massimo (piccolo: ricerca con cammini aumentanti)
 	var adj := {}
 	for u in srcs:
 		var lst := []
+		var reach := 2
+		if u["t"] == "ship" and civ_adv(p, "Cedars & Dyes"):
+			reach = 3
 		for ti in targets.size():
-			if dist_revealed(u["h"], targets[ti]["h"], 2) <= 2:
+			var d := dist_revealed(u["h"], targets[ti]["h"], reach)
+			if d <= 2 or (d <= reach and is_coastal(targets[ti])):
 				lst.append(ti)
 		adj[u["id"]] = lst
 	var match_t := {}
@@ -1041,10 +1269,14 @@ func trade_routes(p: int) -> Dictionary:
 		var seen := {}
 		_augment(u["id"], adj, match_t, seen)
 	var tot := mini(match_t.size(), 4)
+	var markets := {}
 	for ti in match_t:
 		if units.has(match_t[ti]) and units[match_t[ti]]["t"] == "ship":
 			ships += 1
-	return {"count": tot, "ships": mini(ships, tot)}
+		var tc: Dictionary = targets[ti]
+		if exp and tc["o"] >= 0 and tc["b"].get("market", -9) == tc["o"]:
+			markets[tc["o"]] = true
+	return {"count": tot, "ships": mini(ships, tot), "markets": markets.keys()}
 
 
 func _augment(uid: int, adj: Dictionary, match_t: Dictionary, seen: Dictionary) -> bool:

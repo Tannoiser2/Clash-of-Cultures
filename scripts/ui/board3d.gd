@@ -296,10 +296,18 @@ func refresh() -> void:
 		var st := piece("settlement", col, 0.6)
 		st.position = base + Vector3(0, 0, 0.05)
 		pieces.add_child(st)
-		var slots := {"temple": Vector3(-0.42, 0, -0.22), "academy": Vector3(0.42, 0, -0.22), "fortress": Vector3(-0.38, 0, 0.32)}
+		# posti attorno all'insediamento per edifici e meraviglie (il porto va verso il mare)
+		var ring_slots := []
+		for i in 6:
+			var a := -PI * 0.5 - 0.6 + i * TAU / 6.0
+			ring_slots.append(Vector3(cos(a), 0, sin(a)) * 0.46)
+		var si := 0
 		for b in c["b"]:
 			var bc: Color = UI.pcol(c["b"][b])
-			var off: Vector3 = slots.get(b, Vector3.ZERO)
+			var off: Vector3 = Vector3.ZERO
+			if b != "port":
+				off = ring_slots[si % 6]
+				si += 1
 			if b == "port" and c["port"] != "":
 				var d: Vector3 = (world(c["port"]) - world(c["h"])).normalized()
 				off = d * 0.72
@@ -309,10 +317,9 @@ func refresh() -> void:
 				bp.position.y = SEA_TOP
 				bp.look_at_from_position(bp.position, bp.position + (world(c["port"]) - world(c["h"])), Vector3.UP)
 			pieces.add_child(bp)
-		var wslots := [Vector3(0.05, 0, -0.5), Vector3(0.42, 0, 0.3), Vector3(-0.05, 0, 0.55)]
 		for i in c["w"].size():
 			var wp := piece(c["w"][i], Color.WHITE, 0.75, false)
-			wp.position = base + wslots[i % 3]
+			wp.position = base + ring_slots[(si + i) % 6] * 1.1
 			pieces.add_child(wp)
 		if c["mood"] != 1:
 			var sp := _sprite("res://assets/tokens/%s.png" % ("happy" if c["mood"] == 2 else "angry"), 0.32)
@@ -359,7 +366,7 @@ func refresh() -> void:
 			var rad := 0.0 if (n == 1 and not has_city) else (0.62 if has_city else 0.38)
 			var off := Vector3(cos(ang), 0, sin(ang)) * rad
 			var model: String = u["t"]
-			var hgt: float = {"settler": 0.5, "infantry": 0.55, "ship": 0.5}[model]
+			var hgt: float = {"settler": 0.5, "infantry": 0.55, "ship": 0.5, "cavalry": 0.6, "elephant": 0.62, "leader": 0.66}.get(model, 0.55)
 			var pc := piece(model, UI.pcol(u["o"]), hgt)
 			pc.position = base2 + off
 			if u["on"] != -1:

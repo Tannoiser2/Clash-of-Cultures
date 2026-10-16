@@ -39,8 +39,28 @@ gruppo nella direzione scelta), i pagamenti usano automaticamente prima la risor
 obiettivi si completano da soli quando sono soddisfatti. L'IA è euristica: espande, si difende dai barbari e
 attacca quando è in vantaggio, ma costruisce poche meraviglie.
 
-Non c'è ancora l'espansione **Civiltà** (capi, cavalleria, elefanti, pirati, mercati, obelischi, osservatori e le
-15 civiltà), e gli scambi liberi fra giocatori non sono gestiti.
+Gli scambi liberi fra giocatori non sono gestiti.
+
+## Espansione Civiltà
+Si attiva dal menu con **Espansione Civiltà** (funziona anche online). Il gioco base resta com'è.
+- **15 civiltà** assegnate a caso (Aztechi, Babilonia, Cartagine, Celti, Cina, Egitto, Fenicia, Giappone, Grecia,
+  India, Maya, Persia, Roma, Unni, Vichinghi), con la tessera di partenza propria dove prevista. I nomi predefiniti
+  dei posti diventano quelli della civiltà. I 4 **avanzamenti di civiltà** arrivano gratis con l'avanzamento
+  collegato (o con un avanzamento di governo), senza far avanzare il segnaeventi: pulsante «Civiltà».
+- **Cavalleria, Elefanti e Capi** con il vero dado a 12 facce del gioco (icone Fanteria +1, Cavalleria +2,
+  Elefante annulla un colpo, Capo ritira il dado), limite di 4 unità d'armata per casella, scelta del Capo fra i
+  3 della civiltà, un Capo alla volta; chi uccide un Capo nemico ne tiene la carta (2 PV).
+- **Mercato, Obelisco, Osservatorio** (il Mercato abilita Cavalleria ed Elefanti e dà Oro dalle rotte altrui;
+  l'Obelisco è immune all'influenza e resta del suo colore; l'Osservatorio pesca una carta Azione).
+- **Pirati**: navi nere che compaiono con l'icona degli eventi, razziano le città costiere, bloccano raccolta e
+  rotte commerciali e premiano chi le affonda. **Barbari** con Cavalleria ed Elefanti di rinforzo.
+- **20 eventi** (rivoluzioni, eclissi, Cavallo di Troia, pandemia, peste nera, carestie, incendio, grandi
+  personaggi Architetto, Atleta, Diplomatico e Oracolo…) e **6 carte Obiettivo** (12 obiettivi) dell'espansione.
+
+Limiti: delle 60 abilità di civiltà ne sono applicate 34 e delle 90 abilità dei Capi circa la metà (soprattutto
+quelle di battaglia, conquista e costruzione); le altre sono descritte nella plancia con la nota «non automatica».
+Mancano le varianti «Capi casuali» e «Storia alternativa». L'IA usa le nuove unità e i Capi ma non va a caccia
+di pirati.
 
 ## Gioco online
 Dal menu, **GIOCA ONLINE** (anche dalla versione web). Usa lo stesso progetto Firebase degli altri giochi della
@@ -57,6 +77,7 @@ ludoteca (Realtime Database), con le stanze sotto `clash/rooms`: la sezione gene
 ## Struttura
 ```
 scripts/data/coc_data.gd        avanzamenti, edifici, meraviglie, carte (testi italiani)
+scripts/data/civ_data.gd        espansione Civiltà: civiltà, avanzamenti di civiltà, capi
 scripts/core/engine_state.gd    stato, geometria esagonale, risorse, mazzi, decisioni
 scripts/core/engine_actions.gd  preparazione, esplorazione, azioni del turno
 scripts/core/engine_combat.gd   movimento, battaglie, conquista, barbari
@@ -74,5 +95,7 @@ tests/                          sim.gd (IA contro IA), shot.gd (screenshot), onl
 ## Test
 ```
 godot --headless --path . -s res://tests/sim.gd -- 10 4 1,1,2,1     # 10 partite a 4, livelli per posto
+COC_CIV=1 godot --headless --path . -s res://tests/sim.gd -- 10 4    # le stesse con l'espansione Civiltà
 xvfb-run godot --path . -s res://tests/shot.gd -- game 6             # screenshot in user://shots
+xvfb-run godot --path . -s res://tests/shot.gd -- civ                # screenshot dell'espansione
 ```

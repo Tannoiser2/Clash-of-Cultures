@@ -53,6 +53,8 @@ static func res_color(r: String) -> Color:
 
 
 static func pcol(p: int) -> Color:
+	if p == -2:
+		return Color(0.09, 0.09, 0.1)    # pirati
 	if p < 0:
 		return CocData.BARB_COLOR
 	return CocData.COLORS[p]["col"]

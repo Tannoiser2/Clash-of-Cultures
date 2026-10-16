@@ -76,6 +76,15 @@ func adv_value(eng, p: int, a: String) -> float:
 	for w in eng.players[p]["won"]:
 		if D.WONDERS[w]["req"] == a:
 			v += 3.0
+	# espansione: l'avanzamento sblocca un avanzamento di civiltà
+	if eng.exp:
+		var ck: String = eng.players[p].get("civ", "")
+		if ck != "":
+			for ca in CivData.CIVS[ck]["adv"]:
+				if not eng.players[p]["adv"].has(ca[0]) and (ca[2] == a or (ca[2] == "gov" and info["cat"] in D.GOVERNMENTS)):
+					v += 2.5
+		if a in ["Bartering", "Math", "Arts"]:
+			v += 0.8
 	return v
 
 
@@ -209,9 +218,9 @@ func _turn(eng, p: int) -> Dictionary:
 				cands.append([gv * 1.6 - extra_act + _jitter(), {"t": "collect", "c": c["id"], "picks": picks,
 					"metal": eng.has_adv(p, "Metallurgy")}])
 			# costruzione
-			for b in D.BUILDINGS:
-				if eng.can_build(p, c, b) == "" and eng.can_pay(p, eng.build_cost(p, b)):
-					var bvv := _building_value(eng, p, c, b) - _saving_penalty(eng, p, eng.build_cost(p, b))
+			for b in eng.bld_list():
+				if eng.can_build(p, c, b) == "" and eng.can_pay(p, eng.build_cost(p, b, c)):
+					var bvv := _building_value(eng, p, c, b) - _saving_penalty(eng, p, eng.build_cost(p, b, c))
 					cands.append([bvv - extra_act + _jitter(), {"t": "build", "c": c["id"], "b": b}])
 			# meraviglie
 			for w in eng.players[p]["won"]:
@@ -220,7 +229,7 @@ func _turn(eng, p: int) -> Dictionary:
 			# reclutamento
 			var rc := _recruit_plan(eng, p, c)
 			if not rc.is_empty():
-				var rcost: Dictionary = eng.recruit_cost(p, rc[1]["comp"], rc[1]["sanit"], rc[1]["draft"])
+				var rcost: Dictionary = eng.recruit_cost(p, rc[1]["comp"], rc[1]["sanit"], rc[1]["draft"], c)
 				var pen := 0.0 if _city_threat(eng, p, c) > 0 else _saving_penalty(eng, p, rcost)
 				cands.append([rc[0] - extra_act - pen + _jitter(), rc[1]])
 		# avanzamento
@@ -310,10 +319,18 @@ func _building_value(eng, p: int, c: Dictionary, b: String) -> float:
 			v += 0.5 + 2.0 * float(_city_threat(eng, p, c) > 0)
 		"port":
 			v += 0.5
+		"market":
+			v += 1.5 + (1.0 if _city_threat(eng, p, c) > 0 else 0.0)
+		"observatory":
+			v += 1.6
+		"obelisk":
+			v += 1.0
 	for id in eng.players[p]["obj"]:
 		for key in eng.obj_parts(id):
 			if key in ["diverse", "religious", "academic", "fortified", "coastal", "citadel"]:
 				v += 1.0
+			if (key == "mercantile" and b == "market") or (key == "scientists" and b == "observatory") or (key == "legacy" and b == "obelisk"):
+				v += 2.0
 	return v
 
 
@@ -350,6 +367,8 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 	# riduci finché si può pagare
 	while comp["settler"] + comp["infantry"] > 0:
 		if eng.valid_recruit(p, c, comp, sanit, draft) == "":
+			if eng.exp:
+				v += _upgrade_army(eng, p, c, comp, sanit, draft)
 			return [v, {"t": "recruit", "c": c["id"], "comp": comp, "sanit": sanit, "draft": draft}]
 		if comp["infantry"] > 0:
 			comp["infantry"] -= 1
@@ -361,6 +380,33 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 			v -= 4.0
 			sanit = false
 	return []
+
+
+## Espansione: trasforma la fanteria del reclutamento in un Capo, Cavalleria o Elefanti se possibile.
+func _upgrade_army(eng, p: int, c: Dictionary, comp: Dictionary, sanit: bool, draft: bool) -> float:
+	var bonus := 0.0
+	if comp["infantry"] == 0:
+		return 0.0
+	var has_leader: bool = not eng.leader_unit(p).is_empty()
+	if not has_leader and eng.can_recruit_type(p, c, "leader") and comp["infantry"] >= 1:
+		var c2: Dictionary = comp.duplicate()
+		c2["infantry"] -= 1
+		c2["leader"] = 1
+		if (not draft or c2["infantry"] > 0) and eng.valid_recruit(p, c, c2, sanit, draft) == "":
+			comp.merge(c2, true)
+			bonus += 1.5
+	for t in ["cavalry", "elephant", "cavalry", "elephant"]:
+		if comp.get("infantry", 0) <= (1 if draft else 0):
+			break
+		if not eng.can_recruit_type(p, c, t):
+			continue
+		var c3: Dictionary = comp.duplicate()
+		c3["infantry"] -= 1
+		c3[t] = c3.get(t, 0) + 1
+		if eng.valid_recruit(p, c, c3, sanit, draft) == "":
+			comp.merge(c3, true)
+			bonus += 0.8
+	return bonus
 
 
 func _happy_plan(eng, p: int) -> Array:
@@ -510,7 +556,7 @@ func _best_group_move(eng, p: int, moved: Dictionary) -> Array:
 			var r := _settler_move(eng, p, ids)
 			if not r.is_empty() and (best.is_empty() or r[0] > best[0]):
 				best = r
-		elif u0["t"] == "infantry":
+		elif eng.is_army(u0):
 			var r2 := _army_move(eng, p, ids)
 			if not r2.is_empty() and (best.is_empty() or r2[0] > best[0]):
 				best = r2
@@ -684,6 +730,35 @@ func _choice(eng, p: int, req: Dictionary) -> int:
 			return bi3
 		if title.find("Porto") >= 0:
 			return 0
+	if req.has("hexes") and title.begins_with("Pirati"):
+		var hx2: Array = req["hexes"]
+		var bi4 := 0
+		var bd4 := -1
+		for i in hx2.size():
+			var d4 := 99
+			for c in eng.cities_of(p):
+				d4 = mini(d4, eng.hdist(hx2[i], c["h"]))
+			if d4 > bd4:
+				bd4 = d4
+				bi4 = i
+		return bi4
+	if title.find("annullare un colpo") >= 0 or title.find("in ogni round") >= 0 or title.begins_with("Cavallo di Troia"):
+		return 0
+	if title.begins_with("Province"):
+		return 0 if eng.res(p, "culture") >= 3 else 1
+	if title.begins_with("Proconsole"):
+		return 0
+	if title.find("cosa perdi") >= 0:
+		# perde ciò di cui ha di più
+		var bi5 := 0
+		var bv5 := -1
+		var keys := {"Umore": "mood", "Cultura": "culture", "Cibo": "food", "Legno": "wood", "Minerale": "ore", "Idee": "idea", "Oro": "gold"}
+		for i in opts.size():
+			var o: String = str(opts[i]).substr(2)
+			if keys.has(o) and eng.res(p, keys[o]) > bv5:
+				bv5 = eng.res(p, keys[o])
+				bi5 = i
+		return bi5
 	if title.find("Paghi") >= 0 or title.find("paghi") >= 0:
 		return 1
 	if title.find("Ispirazione") >= 0 or title.find("copi") >= 0:

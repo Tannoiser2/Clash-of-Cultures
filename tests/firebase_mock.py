@@ -88,15 +88,15 @@ def allowed(uid, path, new, new_host=None):
     if key in ("status", "open", "game"):
         return host == uid
     if key == "seats" and len(path) == 5:
-        cur = get_node(["manila"] + path[:4]) or {}
+        cur = get_node(["clash"] + path[:4]) or {}
         return cur.get("uid") == uid or host == uid
     if key == "seats" and len(path) == 4:
-        cur = get_node(["manila"] + path)
+        cur = get_node(["clash"] + path)
         if cur is None:
             return (isinstance(new, dict) and new.get("uid") == uid) or host == uid
         return cur.get("uid") == uid or cur.get("away") is True or host == uid
     if key == "acts" and len(path) == 4:
-        if get_node(["manila"] + path) is not None or not isinstance(new, dict):
+        if get_node(["clash"] + path) is not None or not isinstance(new, dict):
             return False
         seat = get_node(["clash", "rooms", code, "seats", str(new.get("s"))]) or {}
         return seat.get("uid") == uid or host == uid

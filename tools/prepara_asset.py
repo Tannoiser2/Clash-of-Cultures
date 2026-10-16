@@ -78,6 +78,20 @@ for i, t in enumerate(tiles):
     out_tiles.append({'id': name, 'terrain': ter})
     print(name, ter)
 
+# tessere di partenza alternative dell'espansione
+for name, key in (('start_carthage', 'F80C00B28D2345AFD4A52855'), ('start_egypt', '4E0088F4B726032848CFCED6'),
+                  ('start_maya', 'F91B6EF8236722345EF87A77'), ('start_phoenicia', '478A1E5BC5575292DB147F8B'),
+                  ('start_viking', '8F26EFCDB53220F9ED8E31D0')):
+    im = img(key).convert('RGB'); W, H = im.size; a = np.asarray(im)
+    ter = {}
+    for p, (u, v) in POS.items():
+        cx, cy, rr = u * W, v * H, RAD * W
+        im.crop((int(cx - rr), int(cy - rr), int(cx + rr), int(cy + rr))).resize((256, 256), Image.LANCZOS).save(os.path.join(tdir, '%s_%s.jpg' % (name, p)), quality=88)
+        inner = a[int(cy - rr * 0.6):int(cy + rr * 0.6), int(cx - rr * 0.6):int(cx + rr * 0.6)]
+        ter[p] = classify(inner)
+    out_tiles.append({'id': name, 'terrain': ter})
+    print(name, ter)
+
 # ---------------------------------------------------------------- carte
 cdir = mk('cards')
 def cut(key, cols, rows, idx, w):
@@ -101,6 +115,12 @@ for c in evs:
         cut('0AA34B0FF8A82BB4F9511461', 4, 2, c['idx'], 360).save(os.path.join(cdir, c['code'].lower() + '.jpg'), quality=86)
 for i in range(8):
     cut('2576FA9011D9D54AD81B7845', 4, 3, i, 420).save(os.path.join(cdir, 'w%d.jpg' % i), quality=86)
+# capi e plance delle civiltà (espansione)
+leaders = json.load(open(os.path.join(SRC, 'cards_leaders.json')))
+for c in leaders:
+    cut('652F00118DBE4D707BCF4556', 8, 6, c['idx'], 360).save(os.path.join(cdir, c['code'].lower() + '.jpg'), quality=86)
+for i in range(15):
+    cut('9D6CE53DBBA79BCCA864546D', 4, 4, i, 420).save(os.path.join(cdir, 'civ%d.jpg' % i), quality=86)
 # dorsi
 for name, key in (('back_action', 'A4D9B66A6D1D0C8344B28920'), ('back_objective', '26BF3D7FACD37CFEBD5F216F'),
                   ('back_event', '2E1F0D10C4B0DF22452C1429'), ('back_wonder', 'FEFDF03DCDEBB6B966158917')):
@@ -133,6 +153,13 @@ MODELS = {
     'great_statue': ('F13900F5ADABD0925AE2D052', '878101FB86EC0EF667AAFA86'),
     'great_library': ('14477C694D80DAB384AABEBC', 'E9A1DCB9018D133DA193ED26'),
     'great_lighthouse': ('22CF82DDE94BA604AE4A77AB', '471432FC5DCB440FCDE7254E'),
+    # espansione Civiltà
+    'market': ('57CFA389BD60BAEA8449FA73', 'A6ACF4C4A4479BBF57DF79AB'),
+    'obelisk': ('B318C4F71E06876385B91810', '390381D2920E6930291A7462'),
+    'observatory': ('2020F8A372A69B27B41E382D', '621CA4AEB60571F5E11A5A82'),
+    'cavalry': ('68F6BE4E42A627AEF723E07A', '5DC11849DDBFAD2E4764EB2F'),
+    'elephant': ('E4F3D32F82BDEEFA718ECD58', 'ECB797BF67D1E656DF9AD3DA'),
+    'leader': ('68712DD14FA5E67209E0B520', '0D42DDF183BF2E38FE48DC52'),
 }
 for name, (mesh, tex) in MODELS.items():
     src = [f for f in glob.glob(os.path.join(SRC, 'obj', '*.obj')) if f[:-4].endswith(mesh)][0]

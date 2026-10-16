@@ -1,6 +1,7 @@
 extends SceneTree
 ## Partite IA contro IA senza grafica, per provare le regole e tarare l'IA.
 ## godot --headless --path . -s res://tests/sim.gd -- <partite> <giocatori> [livelli es. 1,1,2] [log]
+## Variabile d'ambiente COC_CIV=1: partite con l'espansione Civiltà.
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -22,7 +23,8 @@ func _initialize() -> void:
 		var seats := []
 		for i in np:
 			seats.append({"color": i, "ai": true, "name": "IA%d" % i, "level": levels[i]})
-		e.setup({"seats": seats, "seed": 1000 + g})
+		var civ := OS.get_environment("COC_CIV") != ""
+		e.setup({"seats": seats, "seed": 1000 + g, "opts": {"civ": civ}})
 		await e.run()
 		wins[e.results[0]["p"]] += 1
 		for r in e.results:
@@ -31,9 +33,12 @@ func _initialize() -> void:
 			for l in e.log_lines:
 				print(l)
 		var line := "partita %d (era %d):" % [g, e.age]
+		if civ:
+			for p in np:
+				line += " [%s %s]" % [e.pname(p), e.players[p]["civ"]]
 		for r in e.results:
 			var s: Dictionary = r["score"]
-			line += "  %s %.1f (città %d, pezzi %d, av %.1f, ob %d, mer %.1f)" % [e.pname(r["p"]), r["total"], e.cities_of(r["p"]).size(), s["pieces"], s["adv"], s["obj"], s["wonders"]]
+			line += "  %s %.1f (città %d, pezzi %d, av %.1f, ob %d, mer %.1f)" % [e.pname(r["p"]), r["total"], e.cities_of(r["p"]).size(), s["pieces"], s["adv"], s["obj"], s["wonders"]] + (" ev %.1f" % s["events"])
 		print(line)
 		e.queue_free()
 	print("vittorie: ", wins.slice(0, np), "  media punti: ", tot.slice(0, np).map(func(x): return snappedf(x / games, 0.1)))

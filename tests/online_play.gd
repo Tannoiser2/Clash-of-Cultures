@@ -28,6 +28,8 @@ func _run() -> void:
 	menu.seat_mode = [0, 0, 1, 2]
 	menu.speed = 3
 	menu.mods["short"] = true
+	if OS.get_environment("MN_CIV") != "":
+		menu.mods["civ"] = true
 	menu._online_panel()
 	menu.on_name.text = "Host" if role == "host" else "Ospite"
 	if role == "host":

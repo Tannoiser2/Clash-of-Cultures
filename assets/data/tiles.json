@@ -152,6 +152,51 @@
     "L": "mountain",
     "R": "forest"
    }
+  },
+  {
+   "id": "start_carthage",
+   "terrain": {
+    "T": "plains",
+    "B": "sea",
+    "L": "mountain",
+    "R": "forest"
+   }
+  },
+  {
+   "id": "start_egypt",
+   "terrain": {
+    "T": "plains",
+    "B": "barren",
+    "L": "mountain",
+    "R": "barren"
+   }
+  },
+  {
+   "id": "start_maya",
+   "terrain": {
+    "T": "plains",
+    "B": "mountain",
+    "L": "mountain",
+    "R": "forest"
+   }
+  },
+  {
+   "id": "start_phoenicia",
+   "terrain": {
+    "T": "plains",
+    "B": "sea",
+    "L": "mountain",
+    "R": "forest"
+   }
+  },
+  {
+   "id": "start_viking",
+   "terrain": {
+    "T": "plains",
+    "B": "sea",
+    "L": "mountain",
+    "R": "forest"
+   }
   }
  ],
  "layouts": {

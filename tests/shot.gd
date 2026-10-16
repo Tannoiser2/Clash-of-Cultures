@@ -56,6 +56,10 @@ func _run() -> void:
 		return
 	var seats := [{"color": 0, "ai": false, "name": "Roma", "level": 1}, {"color": 1, "ai": true, "name": "Persia", "level": 1},
 		{"color": 2, "ai": true, "name": "Egitto", "level": 1}, {"color": 3, "ai": true, "name": "Cartagine", "level": 1}]
+	if mode == "civ":
+		await _civ_shots(seats)
+		quit()
+		return
 	main.start_game({"seats": seats, "seed": 77, "ai_delay": 0.0})
 	await wait(30)
 	await shot("start")
@@ -123,3 +127,66 @@ func _run() -> void:
 	await wait(5)
 	await shot("cards")
 	quit()
+
+
+## Espansione Civiltà: plancia, reclutamento, pezzi nuovi, pirati, dadi.
+func _civ_shots(seats: Array) -> void:
+	main.start_game({"seats": seats, "seed": 91, "ai_delay": 0.0, "opts": {"civ": true}})
+	await wait(30)
+	await shot("civ_start")
+	var g = gv()
+	var e = g.engine
+	var home: String = e.players[0]["home"]
+	var c: Dictionary = e.city_at(home)
+	# un po' di sviluppo di prova
+	e.players[0]["adv"].append_array(["Bartering", "Tactics", "Arts", "Math"])
+	e.players[0]["res"] = {"food": 2, "wood": 5, "ore": 5, "idea": 3, "gold": 4}
+	e.players[0]["culture"] = 4
+	e.players[0]["mood"] = 4
+	e.new_city(0, e.neighbors(home).filter(func(x): return e.is_land(x) and e.city_at(x).is_empty())[0], 1)
+	c["b"]["market"] = 0
+	c["b"]["obelisk"] = 0
+	e.new_unit(0, "cavalry", home)
+	e.new_unit(0, "elephant", home)
+	e.players[0]["leader"] = e.players[0]["leaders_avail"].pop_front()
+	e.new_unit(0, "leader", home)
+	var seas := []
+	for k in e.hexes:
+		if e.is_sea(k):
+			seas.append(k)
+	if seas.size() > 1:
+		e.new_unit(-2, "ship", seas[0])
+		e.new_unit(-2, "ship", seas[1])
+	e.changed.emit()
+	await wait(10)
+	g._on_hex(home)
+	g.board.focus(home)
+	g.board.t_dist = 5.0
+	await wait(20)
+	await shot("civ_city")
+	g._show_civ(0)
+	await wait(5)
+	await shot("civ_board")
+	g._clear_modal()
+	g._recruit_dialog(0, c)
+	await wait(5)
+	await shot("civ_recruit")
+	g._clear_modal()
+	g._show_dice({"att": [[4, "C", true, false], [2, "E", true, false], [6, "I", true, true], [1, "L", false, false]], "def": [[5, "I", true, false], [3, "E", false, false]], "cva": 18, "cvd": 8, "p": 0, "q": 1, "h": home})
+	await wait(5)
+	await shot("civ_dice")
+	var t0 := Time.get_ticks_msec()
+	var count := 0
+	if OS.get_environment("SHORT") != "":
+		return
+	while e.turn_count < 24 and not e.game_over and Time.get_ticks_msec() - t0 < 300000:
+		await wait(2)
+		if not g.pending.is_empty():
+			if g.pending["type"] == "choice" and g.pending.has("leaders") and count < 1:
+				count += 1
+				await shot("civ_leader_choice")
+			auto_answer()
+	await wait(20)
+	g.board.focus(home)
+	await wait(20)
+	await shot("civ_later")

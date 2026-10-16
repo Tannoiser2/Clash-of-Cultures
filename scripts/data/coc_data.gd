@@ -26,21 +26,35 @@ const MOOD_NAME := ["Arrabbiata", "Neutrale", "Felice"]
 # ------------------------------------------------------------------ edifici e unità
 
 const BUILDINGS := ["temple", "academy", "fortress", "port"]
-const B_NAME := {"temple": "Tempio", "academy": "Accademia", "fortress": "Fortezza", "port": "Porto"}
-const B_REQ := {"temple": "Myths", "academy": "Writing", "fortress": "Tactics", "port": "Fishing"}
+const EXP_BUILDINGS := ["market", "obelisk", "observatory"]
+const B_NAME := {"temple": "Tempio", "academy": "Accademia", "fortress": "Fortezza", "port": "Porto",
+	"market": "Mercato", "obelisk": "Obelisco", "observatory": "Osservatorio"}
+const B_ART := {"temple": "un ", "academy": "un'", "fortress": "una ", "port": "un ", "market": "un ", "obelisk": "un ", "observatory": "un "}
+const B_REQ := {"temple": "Myths", "academy": "Writing", "fortress": "Tactics", "port": "Fishing",
+	"market": "Bartering", "obelisk": "Arts", "observatory": "Math"}
 const B_TEXT := {
 	"temple": "Alla costruzione: +1 Umore o +1 Cultura.",
 	"academy": "Alla costruzione: +2 Idee.",
 	"fortress": "Primo round di ogni battaglia nella città: +1 dado e annulla 1 colpo nemico, anche senza esercito.",
 	"port": "La città recluta Navi. Può raccogliere 1 Oro o 1 Umore da un Mare adiacente al posto del Cibo.",
+	"market": "La città recluta Cavalleria ed Elefanti. Ricevi 1 Oro quando un avversario usa le Rotte commerciali con tue città con Mercato.",
+	"obelisk": "Immune all'Influenza la cultura; resta del tuo colore anche se la città viene conquistata.",
+	"observatory": "Alla costruzione: peschi 1 carta Azione.",
 }
 const UNITS := ["settler", "infantry", "ship"]
-const U_NAME := {"settler": "Colono", "infantry": "Fanteria", "ship": "Nave"}
-const U_PLURAL := {"settler": "Coloni", "infantry": "Fanterie", "ship": "Navi"}
-const U_COST := {"settler": {"food": 2}, "infantry": {"food": 1, "ore": 1}, "ship": {"wood": 2}}
+const EXP_UNITS := ["cavalry", "elephant", "leader"]
+const ARMY := ["infantry", "cavalry", "elephant", "leader"]
+const U_NAME := {"settler": "Colono", "infantry": "Fanteria", "ship": "Nave", "cavalry": "Cavalleria", "elephant": "Elefante", "leader": "Capo"}
+const U_PLURAL := {"settler": "Coloni", "infantry": "Fanterie", "ship": "Navi", "cavalry": "Cavallerie", "elephant": "Elefanti", "leader": "Capi"}
+const U_COST := {"settler": {"food": 2}, "infantry": {"food": 1, "ore": 1}, "ship": {"wood": 2},
+	"cavalry": {"food": 1, "wood": 1}, "elephant": {"food": 2}, "leader": {"culture": 1, "mood": 1}}
 const LIMITS := {"settlement": 7, "temple": 5, "academy": 5, "fortress": 5, "port": 5,
-	"settler": 4, "infantry": 16, "ship": 4}
-const BARB_LIMIT := {"settlement": 10, "infantry": 20}
+	"market": 5, "obelisk": 5, "observatory": 5,
+	"settler": 4, "infantry": 16, "ship": 4, "cavalry": 4, "elephant": 4, "leader": 1}
+const BARB_LIMIT := {"settlement": 10, "infantry": 20, "cavalry": 4, "elephant": 4, "ship": 4}
+## Facce del dado a 12 facce: [valore, icona] (I fanteria, C cavalleria, E elefante, L capo)
+const DIE := [[1, "L"], [1, "L"], [2, "C"], [2, "E"], [3, "E"], [3, "I"], [4, "C"], [4, "E"], [5, "C"], [5, "I"], [6, "I"], [6, "I"]]
+const DIE_ICON_NAME := {"I": "Fanteria", "C": "Cavalleria", "E": "Elefante", "L": "Capo"}
 const BUILD_COST := {"food": 1, "wood": 1, "ore": 1}
 
 # ------------------------------------------------------------------ avanzamenti
@@ -53,7 +67,7 @@ const GOV_REQ := {"Democracy": "Philosophy", "Autocracy": "Draft", "Theocracy": 
 const CAT_NAME := {"Agriculture": "Agricoltura", "Construction": "Costruzioni", "Maritime": "Marineria",
 	"Education": "Istruzione", "Warfare": "Arte della guerra", "Spirituality": "Spiritualità",
 	"Economy": "Economia", "Traditions": "Tradizioni", "Science": "Scienza", "Democracy": "Democrazia",
-	"Autocracy": "Autocrazia", "Theocracy": "Teocrazia"}
+	"Autocracy": "Autocrazia", "Theocracy": "Teocrazia", "Civ": "Civiltà"}
 
 const ADV := {
 	"Agriculture": [
@@ -139,6 +153,11 @@ static func adv_info(name: String) -> Dictionary:
 			for i in lst.size():
 				var a: Array = lst[i]
 				_adv_index[a[0]] = {"name": a[0], "it": a[1], "border": a[2], "text": a[3], "cat": cat, "pos": i}
+		for ck in CivData.CIVS:
+			var civ: Dictionary = CivData.CIVS[ck]
+			for i in civ["adv"].size():
+				var a2: Array = civ["adv"][i]
+				_adv_index[a2[0]] = {"name": a2[0], "it": a2[1], "border": "", "text": a2[3], "cat": "Civ", "civ": ck, "req": a2[2], "pos": i}
 	return _adv_index.get(name, {})
 
 
@@ -324,6 +343,19 @@ const OBJ := {
 	"coastal": ["Cultura costiera", "status", "Hai più città con Porto di ogni altro giocatore."],
 	"science": ["Scienza", "status", "Hai tutti e 4 gli avanzamenti di Scienza."],
 	"happy": ["Felicità", "status", "Hai almeno 4 città felici."],
+	# espansione Civiltà
+	"civ_of_ages": ["Civiltà dei secoli", "status", "Hai tutti e 4 i tuoi avanzamenti di civiltà e hai avuto in gioco almeno due Capi."],
+	"cleanse_seas": ["Ripulire i mari", "now", "Vinci nello stesso turno 2 battaglie diverse contro navi pirata."],
+	"legacy": ["Eredità", "status", "Hai sul tabellone più Obelischi del tuo colore di ogni altro giocatore."],
+	"ivory_tide": ["Marea d'avorio", "status", "Hai Elefanti in almeno 3 eserciti diversi."],
+	"great_migration": ["Grande migrazione", "status", "Hai 3 Coloni sul tabellone, ad almeno 2 caselle l'uno dall'altro e dalle tue città."],
+	"stampede": ["Carica travolgente", "now", "Vinci una battaglia iniziata da te contro un esercito con almeno una Cavalleria o un Elefante sopravvissuti."],
+	"tactical_diversity": ["Diversità tattica", "status", "Hai sul tabellone almeno una Nave, una Fanteria, una Cavalleria, un Elefante, un Capo e un Colono."],
+	"king_slayer": ["Uccisore di re", "now", "Vinci una battaglia in cui sconfiggi un Capo nemico e almeno altri 2 eserciti (o 2 navi)."],
+	"mercantile": ["Mercantile", "status", "Hai più città con Mercato di ogni altro giocatore."],
+	"great_commander": ["Grande comandante", "now", "Vinci una battaglia di terra con il tuo Capo e con eserciti pari o inferiori a quelli nemici."],
+	"scientists": ["Scienziati", "status", "Hai più città con Osservatorio di ogni altro giocatore."],
+	"equestrian": ["Equestre", "status", "Hai Cavalleria in almeno 3 eserciti diversi."],
 }
 
 ## Le 32 carte Obiettivo del gioco base: [numero immagine, obiettivo sopra, obiettivo sotto]
@@ -337,6 +369,11 @@ const OBJECTIVES := [
 	[29, "civilization", "draft"], [30, "well_stocked", "amphibious"], [31, "rich", "great_navy"],
 	[32, "government", "assimilator"], [33, "sea_lanes", "draconian"], [34, "academic", "conqueror"],
 	[35, "coastal", "warmonger"], [37, "science", "amphibious"], [38, "happy", "conqueror"],
+]
+## Le 6 carte Obiettivo dell'espansione Civiltà
+const OBJECTIVES_EXP := [
+	[2, "civ_of_ages", "cleanse_seas"], [3, "legacy", "ivory_tide"], [4, "great_migration", "stampede"],
+	[12, "tactical_diversity", "king_slayer"], [25, "mercantile", "great_commander"], [36, "scientists", "equestrian"],
 ]
 
 # ------------------------------------------------------------------ eventi
@@ -381,11 +418,32 @@ const EVENTS := {
 	"e36": ["Guerra civile", "", "civil_war", "Se hai una città Neutrale o Arrabbiata con Fanteria: perde una Fanteria e peggiora l'umore. Altrimenti peggiora l'umore di una città."],
 	"e37": ["Guerra civile", "", "civil_war", ""],
 	"e38": ["Rivoluzione", "gold", "revolution", "Perdi un'azione e passi i tuoi avanzamenti di governo a un'altra forma di governo. Puoi evitare un effetto per ogni Fanteria che elimini."],
+	# espansione Civiltà
+	"e39": ["Rivoluzione: insurrezione", "", "uprising", "Perdi da 1 a 4 Cultura e/o Umore (se puoi): ogni segnalino perso vale ½ PV a fine partita."],
+	"e40": ["Incontro di ambasciatori", "barb_move", "envoys", "Ricevi 1 Idea e 1 Cultura; un avversario a tua scelta riceve 1 Cultura. Scopri la prima Meraviglia: chiunque debba pescare una Meraviglia può prendere quella."],
+	"e41": ["Eclissi solare", "pirates", "eclipse", "La prossima battaglia fra giocatori con eserciti da entrambe le parti dura un solo round: se l'attaccante vince tiene la carta (1 PV), altrimenti si ritira e la carta va al difensore."],
+	"e42": ["Cavallo di Troia", "barb_move", "trojan", "Chi attacca una città difesa da esercito o Fortezza può pagare 1 Cultura e 1 Legno: il difensore non gioca carte nel primo round. Chi la usa la tiene (1 PV)."],
+	"e43": ["Rivoluzione: Tu quoque, Brute?", "barb_spawn", "brute", "Il tuo Capo muore. Se hai ancora Capi: o ne scegli uno nuovo, gratis in una tua città, o tieni questa carta (2 PV) e non avrai più Capi."],
+	"e44": ["Rivoluzione: anarchia", "", "anarchy", "Perdi tutti gli avanzamenti di governo: ognuno vale 1 PV su questa carta a fine partita."],
+	"e45": ["Riunione di accademici", "pirates", "academics", "Ogni giocatore riceve 1 Idea per ogni sua città con Accademia e/o Osservatorio; tu almeno 2."],
+	"e46": ["Commercio fiorente", "pirates", "brisk_trade", "Ogni giocatore riceve 1 Oro per ogni sua città con Porto e/o Mercato (massimo 3); tu almeno 1."],
+	"e47": ["Era di stabilità", "exhaust", "stability", "Ogni giocatore riceve 1 Umore o Cultura per ogni sua città con Tempio e/o Obelisco (massimo 3); tu almeno 1."],
+	"e48": ["Riforma", "barb_spawn", "reformation", "Scegli un giocatore che mette sotto la sua influenza uno dei tuoi Templi (se non ne hai, la carta passa a chi ne ha)."],
+	"e49": ["Epidemia: pandemia", "barb_move", "pandemic", "Chi ha Igiene la ignora. Ogni giocatore perde, a scelta, 1 Umore, Cultura, risorsa, carta o unità ogni 2 città."],
+	"e50": ["Peste nera", "", "black_death", "Chi ha almeno 4 unità ne perde 1 ogni 4 (una in più con Strade, Navigazione o Rotte commerciali); ogni unità persa vale 1 PV."],
+	"e51": ["Carestia: parassiti", "", "pests", "Chi ha Irrigazione la ignora. Chi ha Magazzini perde 1 Cibo; se non può, una sua città diventa Arrabbiata."],
+	"e52": ["Carestia: siccità", "", "drought", "Chi ha Irrigazione la ignora. Perdi 1 Cibo per ogni Terra arida con tue città sopra o accanto (massimo 3); se non basta, una di quelle città diventa Arrabbiata."],
+	"e53": ["Incendio", "gold", "wildfire", "Una tua città in Foresta e le città collegate da Foreste peggiorano l'umore; se non hai città in Foresta perdi 1 Legno."],
+	"e54": ["Un anno prospero", "pirates", "prosperous", "Chi ha meno città riceve 1 Cibo per ogni città in meno rispetto a chi ne ha di più (se tutti pari, 1 Cibo a testa)."],
+	"e55": ["Grande architetto", "pirates", "gp_architect", "Tienilo davanti a te con 3 Cultura sopra: per una Meraviglia puoi ignorarne il prerequisito e spendere quella Cultura."],
+	"e56": ["Grande atleta", "pirates", "gp_athlete", "Come azione: avanzamento gratis di Tradizioni e/o cambia Cultura in Umore o viceversa."],
+	"e57": ["Grande diplomatico", "barb_spawn", "gp_diplomat", "Tienilo davanti a te legato a un altro giocatore: chi di voi attacca l'altro deve pagargli 2 Cultura."],
+	"e58": ["Grande oracolo", "pirates", "gp_oracle", "Come azione: peschi tanti Obiettivi quanti i giocatori e ne dai uno coperto a testa, che lo prenderà alla sua prossima pesca."],
 }
 
 const GREAT_PERSON_CAT := {"gp_discoverer": "Maritime", "gp_artist": "Traditions", "gp_prophet": "Spirituality",
 	"gp_philosopher": "Education", "gp_scientist": "Science", "gp_statesman": "gov", "gp_warlord": "Warfare",
-	"gp_merchant": "Economy", "gp_engineer": "Construction"}
+	"gp_merchant": "Economy", "gp_engineer": "Construction", "gp_athlete": "Traditions"}
 
 
 static func event_text(id: String) -> String:
@@ -410,6 +468,8 @@ static func card_title(id: String) -> String:
 		return "%s / %s" % [OBJ[o[1]][0], OBJ[o[2]][0]]
 	elif WONDERS.has(id):
 		return WONDERS[id]["it"]
+	elif id.begins_with("l") and CivData.LEADERS.has(id):
+		return CivData.LEADERS[id][0]
 	return id
 
 
@@ -428,7 +488,7 @@ static func tactic(key: String) -> Dictionary:
 
 static func objective_card(id: String) -> Array:
 	var num := int(id.substr(1))
-	for o in OBJECTIVES:
+	for o in OBJECTIVES + OBJECTIVES_EXP:
 		if o[0] == num:
 			return o
 	return []

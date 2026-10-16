@@ -300,6 +300,12 @@ func _player_row(p: int) -> Control:
 	vp.tooltip_text = "Pezzi di città %d · Avanzamenti %s · Obiettivi %d · Meraviglie %s · Eventi %s" % [sc["pieces"], _num(sc["adv"]), sc["obj"], _num(sc["wonders"]), _num(sc["events"])]
 	vp.mouse_filter = Control.MOUSE_FILTER_PASS
 	hb.add_child(vp)
+	if engine.exp:
+		var ck: String = pl.get("civ", "")
+		var ld: String = pl.get("leader", "")
+		var cl := UI.label("%s · %s" % [CivData.CIVS[ck]["it"], ("Capo: " + CivData.LEADERS[ld][0]) if ld != "" else "nessun Capo"], 15, UI.GOLD)
+		cl.clip_text = true
+		vb.add_child(cl)
 	var rf := HFlowContainer.new()
 	rf.add_theme_constant_override("h_separation", 4)
 	rf.add_theme_constant_override("v_separation", 4)
@@ -330,7 +336,83 @@ func _player_row(p: int) -> Control:
 	b3.tooltip_text = "Obiettivi completati"
 	b3.pressed.connect(func(): _show_done(p))
 	hb2.add_child(b3)
+	if engine.exp:
+		var b4 := UI.button("Civiltà", 90, 32, 13)
+		b4.tooltip_text = "Avanzamenti di civiltà e Capi"
+		b4.pressed.connect(func(): _show_civ(p))
+		hb2.add_child(b4)
 	return pc
+
+
+## Plancia della civiltà: i 4 avanzamenti propri e i 3 Capi.
+func _show_civ(p: int) -> void:
+	var pl: Dictionary = engine.players[p]
+	var ck: String = pl["civ"]
+	var civ: Dictionary = CivData.CIVS[ck]
+	var vb := _open_modal("%s — %s" % [civ["it"], engine.pname(p)], 1500)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 16)
+	vb.add_child(hb)
+	var left := VBoxContainer.new()
+	left.custom_minimum_size = Vector2(520, 0)
+	left.add_theme_constant_override("separation", 8)
+	hb.add_child(left)
+	left.add_child(UI.title("Avanzamenti di civiltà", 20, UI.INK))
+	var note := UI.label("Si ottengono gratis quando ottieni l'avanzamento indicato fra parentesi.", 14, UI.INK2)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	left.add_child(note)
+	for a in civ["adv"]:
+		var owned: bool = pl["adv"].has(a[0])
+		var box := PanelContainer.new()
+		box.add_theme_stylebox_override("panel", UI.flat(Color("#c99a43") if owned else Color("#3a2614"), UI.GOLD_DARK, 1, 6, 8))
+		var bvb := VBoxContainer.new()
+		box.add_child(bvb)
+		var req: String = "un avanzamento di governo" if a[2] == "gov" else D.adv_it(a[2])
+		bvb.add_child(UI.label("%s  (%s)%s" % [a[1], req, "  ✓" if owned else ""], 17, UI.DARK if owned else UI.GOLD, UI.font_bold))
+		var tx := UI.label(a[3] + ("" if a[0] in CivData.AUTO_ADV else "\n[effetto non applicato automaticamente]"), 14, UI.DARK if owned else UI.PARCH)
+		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tx.custom_minimum_size = Vector2(500, 0)
+		bvb.add_child(tx)
+		left.add_child(box)
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 8)
+	hb.add_child(right)
+	right.add_child(UI.title("Capi", 20, UI.INK))
+	var lrow := HBoxContainer.new()
+	lrow.add_theme_constant_override("separation", 12)
+	right.add_child(lrow)
+	for code in civ["leaders"]:
+		var L: Array = CivData.LEADERS[code]
+		var st := "disponibile"
+		if pl.get("leader", "") == code:
+			st = "in gioco"
+		elif not pl.get("leaders_avail", []).has(code):
+			st = "perduto"
+		var col := VBoxContainer.new()
+		col.custom_minimum_size = Vector2(290, 0)
+		var img := _card_img(code, 150)
+		img.modulate = Color(1, 1, 1, 1) if st != "perduto" else Color(0.5, 0.5, 0.5)
+		col.add_child(img)
+		col.add_child(UI.label("%s (%s)" % [L[0], st], 16, UI.INK, UI.font_bold))
+		var auto: Array = CivData.AUTO_LEADER.get(code, [false, false])
+		for i in 2:
+			var t := UI.label("%s: %s%s" % [L[3 + i * 2], L[4 + i * 2], "" if auto[i] else " [non automatica]"], 13, UI.INK)
+			t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			t.custom_minimum_size = Vector2(285, 0)
+			col.add_child(t)
+		lrow.add_child(col)
+	var extra := []
+	if pl.get("killed_leaders", []).size() > 0:
+		extra.append("Capi nemici uccisi: %s (2 PV ciascuno)" % ", ".join(pl["killed_leaders"].map(func(x): return CivData.LEADERS[x][0])))
+	if int(pl.get("captives", 0)) > 0:
+		extra.append("Prigionieri: %d (½ PV ciascuno)" % pl["captives"])
+	if int(pl.get("architect", 0)) > 0:
+		extra.append("Grande architetto: %d Cultura per la prossima Meraviglia" % pl["architect"])
+	if not extra.is_empty():
+		var el := UI.label("\n".join(extra), 15, UI.INK)
+		el.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		right.add_child(el)
+	_close_button(vb)
 
 
 func _num(x: float) -> String:
@@ -451,9 +533,13 @@ func _show_dice(d: Dictionary) -> void:
 		nm.custom_minimum_size = Vector2(170, 0)
 		hb.add_child(nm)
 		for v in d[side[0]]:
-			hb.add_child(_die(int(v)))
+			hb.add_child(_die(v))
 		var cv: int = d[side[2]]
-		hb.add_child(UI.label("  = %d  →  %d colpi" % [cv, cv / 5], 20, UI.GOLD, UI.font_bold))
+		var canc := 0
+		for x in d[side[0]]:
+			if x is Array and x.size() > 2 and x[1] == "E" and x[2]:
+				canc += 1
+		hb.add_child(UI.label("  = %d  →  %d colpi%s" % [cv, cv / 5, ("  (annulla %d)" % canc) if canc > 0 else ""], 20, UI.GOLD, UI.font_bold))
 	dice_panel.position = Vector2(700, 90)
 	dice_panel.size = Vector2(10, 10)
 	dice_panel.visible = true
@@ -463,18 +549,36 @@ func _show_dice(d: Dictionary) -> void:
 	tw.tween_property(dice_panel, "modulate:a", 0.0, 0.5)
 
 
-func _die(v: int) -> Control:
+## Un dado: [valore, icona, abilità attivata, ritirato dal Capo]. Sotto il numero l'iniziale dell'icona.
+func _die(d) -> Control:
+	var v: int = int(d[0]) if d is Array else int(d)
+	var icon: String = str(d[1]) if d is Array else ""
+	var active: bool = d is Array and d.size() > 2 and bool(d[2])
+	var rer: bool = d is Array and d.size() > 3 and bool(d[3])
 	var pc := PanelContainer.new()
-	var col := Color("#f3e6c8")
-	pc.add_theme_stylebox_override("panel", UI.flat(col, Color("#5a3a1e"), 2, 6, 4))
-	pc.custom_minimum_size = Vector2(40, 40)
-	var icon: String = ["", "L", "E", "C", "C", "F", "F"][v]
-	var l := UI.label(str(v), 22, UI.INK, UI.font_bold)
+	var col := Color("#e8c26a") if active else Color("#f3e6c8")
+	pc.add_theme_stylebox_override("panel", UI.flat(col, Color("#7a4f28") if active else Color("#5a3a1e"), 2, 6, 4))
+	pc.custom_minimum_size = Vector2(44, 52)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", -4)
+	pc.add_child(vb)
+	var shown := v
+	if active and icon == "E":
+		shown = 0
+	var l := UI.label(str(shown) if not (active and icon == "E") else "x", 22, UI.INK, UI.font_bold)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.tooltip_text = {"L": "Capo", "E": "Elefante", "C": "Cavalleria", "F": "Fanteria (+1 se hai Fanteria)"}[icon]
-	pc.add_child(l)
-	if v >= 5:
-		pc.add_theme_stylebox_override("panel", UI.flat(Color("#e8c26a"), Color("#7a4f28"), 2, 6, 4))
+	vb.add_child(l)
+	var ic := UI.label({"I": "Fant", "C": "Cav", "E": "Elef", "L": "Capo"}.get(icon, ""), 11, UI.INK2, UI.font_bold)
+	ic.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(ic)
+	var tip: String = {"I": "Fanteria: +1 se in battaglia c'è una Fanteria", "C": "Cavalleria: +2 se in battaglia c'è una Cavalleria",
+		"E": "Elefante: se c'è un Elefante il dado non conta ma annulla un colpo", "L": "Capo: con un Capo in battaglia si ritira"}.get(icon, "")
+	if active:
+		tip += "\n(abilità attivata)"
+	if rer:
+		tip += "\n(ritirato dal Capo)"
+	pc.tooltip_text = tip
+	l.mouse_filter = Control.MOUSE_FILTER_PASS
 	return pc
 
 
@@ -608,7 +712,14 @@ func _refresh_info() -> void:
 	if not us.is_empty():
 		info_box.add_child(UI.label("Unità", 18, UI.GOLD, UI.font_title))
 		for u in us:
-			var t := "%s di %s%s" % [D.U_NAME[u["t"]], engine.pname(u["o"]), " (a bordo)" if u["on"] != -1 else ""]
+			var un: String = D.U_NAME[u["t"]]
+			if u["t"] == "leader" and u["o"] >= 0 and engine.players[u["o"]].get("leader", "") != "":
+				un = "Capo %s" % CivData.LEADERS[engine.players[u["o"]]["leader"]][0]
+			elif u["o"] == -2:
+				un = "Nave pirata"
+			var t := "%s di %s%s" % [un, engine.pname(u["o"]), " (a bordo)" if u["on"] != -1 else ""]
+			if u["o"] == -2:
+				t = un
 			if u["o"] == me and pending.get("type", "") == "move":
 				var cb := CheckBox.new()
 				cb.text = t
@@ -666,14 +777,16 @@ func _city_actions(p: int, c: Dictionary) -> void:
 	var b2 := UI.button("Recluta unità", 280, 40, 15)
 	b2.pressed.connect(func(): _recruit_dialog(p, c))
 	info_box.add_child(b2)
-	for b in D.BUILDINGS:
+	for b in engine.bld_list():
 		var why: String = engine.can_build(p, c, b)
-		if why == "" and not engine.can_pay(p, engine.build_cost(p, b)):
-			why = "servono %s" % engine.cost_text(engine.build_cost(p, b))
+		if why == "" and not engine.can_pay(p, engine.build_cost(p, b, c)):
+			why = "servono %s" % engine.cost_text(engine.build_cost(p, b, c))
 		if why == "c'è già":
 			continue
+		if why.begins_with("serve ") and b in D.EXP_BUILDINGS:
+			continue
 		var bb := UI.button("Costruisci %s" % D.B_NAME[b], 280, 40, 15)
-		bb.tooltip_text = (D.B_TEXT[b] + "\nCosto: " + engine.cost_text(engine.build_cost(p, b))) + ("" if why == "" else "\nNon ora: " + why)
+		bb.tooltip_text = (D.B_TEXT[b] + "\nCosto: " + engine.cost_text(engine.build_cost(p, b, c))) + ("" if why == "" else "\nNon ora: " + why)
 		bb.disabled = why != ""
 		var bk: String = b
 		bb.pressed.connect(func(): _provide({"t": "build", "c": c["id"], "b": bk}))
@@ -866,6 +979,28 @@ func _choice_ui(req: Dictionary) -> void:
 		_spy_preview(vb, req["spy"])
 	if with_map and not req.get("explore", false):
 		vb.add_child(UI.label("Clicca una casella illuminata sulla mappa oppure scegli qui:", 16, UI.INK2))
+	if req.has("leaders"):
+		var lr := HBoxContainer.new()
+		lr.add_theme_constant_override("separation", 12)
+		vb.add_child(lr)
+		var lst: Array = req["leaders"]
+		for i in lst.size():
+			var L: Array = CivData.LEADERS[lst[i]]
+			var col := VBoxContainer.new()
+			col.custom_minimum_size = Vector2(230, 0)
+			col.add_child(_card_img(lst[i], 130))
+			col.add_child(UI.label(L[0], 16, UI.INK, UI.font_bold))
+			for j in 2:
+				var t := UI.label("%s: %s" % [L[3 + j * 2], L[4 + j * 2]], 12, UI.INK)
+				t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				t.custom_minimum_size = Vector2(225, 0)
+				col.add_child(t)
+			var bsel := UI.primary(UI.button("Scegli", 160, 38, 15))
+			var li := i
+			bsel.pressed.connect(func(): _provide(li))
+			col.add_child(bsel)
+			lr.add_child(col)
+		return
 	var cards: Array = req.get("cards", [])
 	var sc := ScrollContainer.new()
 	sc.custom_minimum_size = Vector2(w - 40, mini(420, 50 * opts.size() + 10))
@@ -963,6 +1098,11 @@ func _place_modal(pc: PanelContainer, map_visible: bool) -> void:
 	await get_tree().process_frame
 	if not is_instance_valid(pc):
 		return
+	pc.size = pc.get_combined_minimum_size()
+	await get_tree().process_frame
+	if not is_instance_valid(pc):
+		return
+	pc.size = pc.get_combined_minimum_size()
 	var s := pc.size
 	if map_visible:
 		pc.position = Vector2((LW + RX) / 2.0 - s.x / 2.0, 1072 - s.y)
@@ -1215,7 +1355,9 @@ func _collect_dialog(p: int, c: Dictionary, free: bool) -> void:
 # ---- reclutamento
 
 func _recruit_dialog(p: int, c: Dictionary) -> void:
-	var comp := {"settler": 0, "infantry": 0, "ship": 0}
+	var comp := {}
+	for t0 in engine.unit_list():
+		comp[t0] = 0
 	var flags := {"sanit": false, "draft": false}
 	var vb := _open_modal("Reclutamento: al massimo %d unità" % engine.eff_size(c), 640)
 	var msg := UI.label("", 17, UI.TERRA, UI.font_bold)
@@ -1224,9 +1366,9 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 	var upd := func():
 		var why: String = engine.valid_recruit(p, c, comp, flags["sanit"], flags["draft"])
 		msg.text = why
-		cost_l.text = "Costo: " + engine.cost_text(engine.recruit_cost(p, comp, flags["sanit"], flags["draft"]))
+		cost_l.text = "Costo: " + engine.cost_text(engine.recruit_cost(p, comp, flags["sanit"], flags["draft"], c))
 		confirm.disabled = why != ""
-	for t in D.UNITS:
+	for t in engine.unit_list():
 		var hb := HBoxContainer.new()
 		hb.add_theme_constant_override("separation", 8)
 		var lb := UI.label("%s (%s)" % [D.U_NAME[t], engine.cost_text(D.U_COST[t])], 18, UI.INK)
@@ -1249,6 +1391,12 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 		if t == "ship" and not c["b"].has("port"):
 			plus.disabled = true
 			lb.text += " — serve un Porto"
+		elif t in D.EXP_UNITS and not engine.can_recruit_type(p, c, t):
+			plus.disabled = true
+			lb.text += " — " + engine.recruit_block(p, c, t)
+		if t == "leader":
+			lb.tooltip_text = "Scegli uno dei tuoi Capi: un solo Capo alla volta (reclutarne un altro scarta il vecchio)."
+			lb.mouse_filter = Control.MOUSE_FILTER_PASS
 		hb.add_child(minus)
 		hb.add_child(val)
 		hb.add_child(plus)

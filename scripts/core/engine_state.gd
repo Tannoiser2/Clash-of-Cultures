@@ -20,6 +20,7 @@ var ais := {}
 var online = null
 var abort := false
 var opts := {}
+var exp := false                # espansione Civiltà
 
 # ---- stato
 var n := 0
@@ -49,6 +50,11 @@ var log_lines: Array = []
 var turn_count := 0
 var battle := {}                # battaglia in corso (per la UI)
 var last_dice := {}
+# ---- espansione Civiltà
+var eclipse := false            # E41: la prossima battaglia fra giocatori dura un solo round
+var trojan := false             # E42: il Cavallo di Troia è sul tavolo
+var diplomat := {}              # E57: {"a": possessore, "b": altro giocatore}
+var oracle := {}                # E58: giocatore -> obiettivo da pescare alla prossima pesca
 
 
 # ------------------------------------------------------------------ geometria
@@ -166,6 +172,8 @@ func within(a: String, maxd: int, land_only := false) -> Dictionary:
 func pname(p: int) -> String:
 	if p == -1:
 		return "i Barbari"
+	if p == -2:
+		return "i Pirati"
 	if p < 0 or p >= n:
 		return "?"
 	return players[p]["name"]
@@ -204,7 +212,7 @@ func food_limit(p: int) -> int:
 func res_limit(p: int, r: String) -> int:
 	if r == "food":
 		return food_limit(p)
-	if r == "idea" and has_adv(p, "Dogma"):
+	if r == "idea" and has_adv(p, "Dogma") and not civ_adv(p, "Ziggurats"):
 		return 2
 	return 7
 
@@ -360,7 +368,16 @@ func units_of(p: int, t := "") -> Array:
 
 
 static func is_army(u: Dictionary) -> bool:
-	return u["t"] == "infantry"
+	return u["t"] in D.ARMY
+
+
+## Edifici e unità in gioco (con l'espansione anche Mercato, Obelisco, Osservatorio, Cavalleria, Elefante, Capo).
+func bld_list() -> Array:
+	return D.BUILDINGS + D.EXP_BUILDINGS if exp else D.BUILDINGS
+
+
+func unit_list() -> Array:
+	return D.UNITS + D.EXP_UNITS if exp else D.UNITS
 
 
 func armies_at(k: String, p := -99) -> Array:
@@ -415,7 +432,7 @@ func supply_left(p: int, piece: String) -> int:
 	var used := 0
 	if piece == "settlement":
 		used = cities_of(p).size()
-	elif piece in D.BUILDINGS:
+	elif piece in D.BUILDINGS or piece in D.EXP_BUILDINGS:
 		for id in cities:
 			if cities[id]["b"].get(piece, -9) == p:
 				used += 1
@@ -431,11 +448,33 @@ func new_unit(p: int, t: String, k: String, on := -1) -> Dictionary:
 	return u
 
 
-func remove_unit(u: Dictionary) -> void:
+func remove_unit(u: Dictionary, killer := -9) -> void:
 	if u["t"] == "ship":
 		for c in carried(u["id"]):
+			if c["t"] == "leader":
+				leader_gone(c["o"], killer)
 			units.erase(c["id"])
+	if u["t"] == "leader":
+		leader_gone(u["o"], killer)
 	units.erase(u["id"])
+
+
+## Il capo è morto o è stato sostituito: la carta va a chi l'ha ucciso in battaglia (2 PV) o nella scatola.
+func leader_gone(p: int, killer := -9) -> void:
+	if p < 0 or not exp:
+		return
+	var code: String = players[p].get("leader", "")
+	if code == "":
+		return
+	players[p]["leader"] = ""
+	if killer >= 0 and killer != p:
+		players[killer]["killed_leaders"].append(code)
+		log_msg("%s uccide %s, capo di %s (+2 PV)." % [pname(killer), CivData.LEADERS[code][0], pname(p)])
+	else:
+		log_msg("%s, capo di %s, lascia la scena." % [CivData.LEADERS[code][0], pname(p)])
+	if civ_adv(p, "Embalming"):
+		gain(p, "culture", 1)
+
 
 
 func new_city(p: int, k: String, mood := 1) -> Dictionary:
@@ -516,6 +555,12 @@ func score(p: int) -> Dictionary:
 			if c["b"][b] == p:
 				pieces += 1
 	var adv: float = players[p]["adv"].size() * 0.5
+	if exp and civ_adv(p, "City Independence"):
+		# Fenicia: gli avanzamenti di governo non valgono punti (i porti valgono 1½ PV, sotto)
+		for g in D.GOVERNMENTS:
+			for a in D.ADV[g]:
+				if players[p]["adv"].has(a[0]):
+					adv -= 0.5
 	var objs: int = players[p]["done"].size() * 2
 	var won := 0.0
 	for w in D.WONDERS:
@@ -536,8 +581,63 @@ func score(p: int) -> Dictionary:
 		elif builder == p:
 			won += val / 2.0
 	var ev: float = players[p]["vp_extra"]
+	if exp:
+		ev += players[p].get("killed_leaders", []).size() * 2.0
+		ev += players[p].get("captives", 0) * 0.5
+		ev += float(players[p].get("anarchy", 0))
+		if civ_adv(p, "City Independence"):
+			for id in cities:
+				if cities[id]["b"].get("port", -9) == p:
+					ev += 0.5
+		# Canuto il Grande: l'insediamento della sua città vale ½ PV per casella di distanza dalla prima città
+		var lu := leader_unit(p)
+		if not lu.is_empty() and players[p].get("leader", "") == "l43":
+			var lc := city_at(lu["h"])
+			if not lc.is_empty() and lc["o"] == p:
+				ev += 0.5 * hdist(lc["h"], players[p]["home"])
 	return {"pieces": pieces, "adv": adv, "obj": objs, "wonders": won, "events": ev,
 		"total": pieces + adv + objs + won + ev}
+
+
+# ------------------------------------------------------------------ espansione: civiltà e capi
+
+func civ_adv(p: int, a: String) -> bool:
+	return exp and p >= 0 and p < n and players[p]["adv"].has(a)
+
+
+## Il capo attivo di p è quello indicato (codice "l41"…) ed è sul tabellone.
+func leader_is(p: int, code: String) -> bool:
+	return exp and p >= 0 and players[p].get("leader", "") == code and not leader_unit(p).is_empty()
+
+
+func leader_unit(p: int) -> Dictionary:
+	for id in units:
+		var u: Dictionary = units[id]
+		if u["o"] == p and u["t"] == "leader":
+			return u
+	return {}
+
+
+## Il capo si trova in questa casella.
+func leader_at(p: int, k: String) -> bool:
+	var lu := leader_unit(p)
+	return not lu.is_empty() and lu["h"] == k
+
+
+## Pirati: bloccano la raccolta e le rotte nel loro Mare e nei Mari adiacenti.
+func pirate_blocked(k: String, p: int) -> bool:
+	if not exp or civ_adv(p, "Pirate Allies"):
+		return false
+	for x in [k] + neighbors(k):
+		if not is_sea(x):
+			continue
+		for u in ships_at(x, -2):
+			return true
+	return false
+
+
+func pirates() -> Array:
+	return units_of(-2, "ship")
 
 
 # ------------------------------------------------------------------ mazzi
@@ -584,13 +684,23 @@ func draw_action(p: int, k := 1) -> void:
 
 func draw_objective(p: int, k := 1) -> void:
 	for i in k:
-		var c := draw("objective", p)
+		var c := ""
+		if oracle.has(p):
+			c = oracle[p]
+			oracle.erase(p)
+		else:
+			c = draw("objective", p)
 		if c != "":
 			players[p]["obj"].append(c)
 
 
 func draw_wonder(p: int) -> void:
-	var c := draw("wonder", p)
+	var c := ""
+	if not table_wonders.is_empty():
+		# E40: la Meraviglia scoperta sul tavolo
+		c = table_wonders.pop_front()
+	else:
+		c = draw("wonder", p)
 	if c != "":
 		players[p]["won"].append(c)
 		log_msg("%s pesca una carta Meraviglia." % pname(p))
@@ -689,5 +799,10 @@ func naval_battle(_p: int, _ships: Array, _h: String, _from: String) -> Dictiona
 
 
 func d6() -> int:
-	# dado a 12 facce numerato 1-6 due volte: 1 Capo, 2 Elefante, 3-4 Cavalleria, 5-6 Fanteria
+	# il dado a 12 facce ha i numeri da 1 a 6 due volte: per i tiri semplici basta il valore
 	return rng.randi_range(1, 6)
+
+
+## Tiro di un dado da combattimento: [valore, icona] (I fanteria, C cavalleria, E elefante, L capo).
+func roll_die() -> Array:
+	return D.DIE[rng.randi() % 12]

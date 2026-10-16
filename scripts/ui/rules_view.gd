@@ -25,7 +25,7 @@ Nel tuo turno fai 3 azioni principali, in qualsiasi ordine, anche ripetute:
 Ci sono poi le [b]azioni gratuite[/b] e speciali di avanzamenti, meraviglie e carte (pulsante «Speciali» e «Carte»).
 
 [b]Combattimento[/b]
-Quando un esercito entra in una casella con nemici o una città nemica si combatte. In ogni round ognuno può giocare la tattica di una carta Azione (serve Tattica), poi tira un dado per esercito: la somma più +1 per ogni 5 o 6 (abilità della Fanteria) è il valore di combattimento; ogni 5 punti è un colpo che elimina un esercito nemico. La Fortezza dà nel primo round un dado in più e annulla un colpo. Dopo ogni round l'attaccante può ritirarsi. Chi resta solo in una città la conquista: riceve Oro pari alla dimensione (+1 se Felice, 1 se Arrabbiata), i pezzi passano al suo colore e la città diventa Arrabbiata; chi l'ha persa riceve un Colono. Vincere contro i Barbari dà 1 Oro (più 1 per una loro città conquistata).
+Quando un esercito entra in una casella con nemici o una città nemica si combatte. In ogni round ognuno può giocare la tattica di una carta Azione (serve Tattica), poi tira un dado (a 12 facce, numeri da 1 a 6 con un'icona) per ogni unità d'armata: la somma è il valore di combattimento, e ogni icona di un tipo di unità presente attiva l'abilità di una di quelle unità (Fanteria +1); ogni 5 punti è un colpo che elimina un'unità nemica. La Fortezza dà nel primo round un dado in più e annulla un colpo. Dopo ogni round l'attaccante può ritirarsi. Chi resta solo in una città la conquista: riceve Oro pari alla dimensione (+1 se Felice, 1 se Arrabbiata), i pezzi passano al suo colore e la città diventa Arrabbiata; chi l'ha persa riceve un Colono. Vincere contro i Barbari dà 1 Oro (più 1 per una loro città conquistata).
 
 [b]Eventi e Barbari[/b]
 Gli eventi hanno spesso un'icona: Miniera d'oro (+2 Oro), Terra esausta, Barbari che compaiono (un insediamento a 2 caselle da te) o che si muovono verso le tue città. Gli eventi Grande personaggio si possono tenere come carte Azione pagando Cultura.
@@ -43,8 +43,18 @@ Ogni carta Obiettivo ha due obiettivi: se ne completa uno solo. Alcuni si comple
 • Passa il mouse sopra avanzamenti e carte per leggere il testo in italiano.
 • Trascina per ruotare, rotella o pizzico per lo zoom, tasto destro o Maiusc + trascina per spostare la vista. F11 schermo intero.
 
+[b]Espansione Civiltà[/b] (opzione nel menu)
+Ogni giocatore riceve a caso una delle 15 civiltà. I suoi 4 avanzamenti di civiltà arrivano gratis quando ottieni l'avanzamento collegato (senza far avanzare il segnaeventi); pulsante «Civiltà» per leggerli.
+• Nuove unità d'armata: Cavalleria (1 Cibo + 1 Legno) ed Elefante (2 Cibo), solo in città con Mercato; Capo (1 Cultura + 1 Umore), uno solo alla volta, scelto fra i 3 della tua civiltà. Al massimo 4 unità d'armata per casella.
+• Dado: icona Cavalleria +2; icona Elefante: il dado non conta ma annulla un colpo nemico; icona Capo: con un Capo in battaglia il dado si ritira. Le perdite tolgono prima la Fanteria e per ultimo il Capo.
+• Chi uccide un Capo nemico ne tiene la carta: 2 PV. Ogni Capo ha due abilità (bonus in battaglia e altri effetti).
+• Nuovi edifici: Mercato (Baratto: Cavalleria ed Elefanti, 1 Oro quando un avversario usa le Rotte commerciali verso tue città con Mercato), Obelisco (Arti: immune all'Influenza, resta tuo anche se la città cade), Osservatorio (Matematica: peschi una carta Azione).
+• Pirati: con l'icona dell'evento compaiono 2 navi nere e razziano le città vicine (1 risorsa, Umore o Cultura). Bloccano raccolta e rotte nel loro mare e in quelli accanto; affondarle dà 1 Oro e 1 Umore o Cultura ciascuna.
+• I Barbari possono ricevere Cavalleria ed Elefanti come rinforzi; 20 eventi e 6 obiettivi in più.
+Alcune abilità di Capi e civiltà (segnate «non automatica» nella plancia) sono solo descritte.
+
 [b]Cosa manca[/b]
-Questa versione è il gioco base della Monumental Edition: l'espansione Civiltà (capi, cavalleria, elefanti, pirati, mercati, obelischi, osservatori) non c'è ancora. Gli scambi liberi fra giocatori non sono gestiti."""
+Gli scambi liberi fra giocatori non sono gestiti. Nell'espansione non ci sono le varianti «Capi casuali» e «Storia alternativa»."""
 
 var main
 
