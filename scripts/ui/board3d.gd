@@ -272,6 +272,31 @@ func piece(name: String, col: Color, height: float, tinted := true) -> Node3D:
 	return root
 
 
+## Pezzo di città in scala comune: nc = distanza (nel modello) fra l'origine e il centro della parte
+## incavata, che va a coincidere con il centro dell'insediamento.
+const CITY_SCALE := 0.7
+
+
+func _city_a0(c: Dictionary) -> float:
+	if c["b"].has("port") and c["port"] != "":
+		var dp: Vector3 = world(c["port"]) - world(c["h"])
+		return atan2(dp.z, dp.x)
+	return PI * 0.25
+
+
+func piece_scaled(name: String, col: Color, s: float, tinted := true, nc := 0.0) -> Node3D:
+	var root := Node3D.new()
+	var mesh := _model(name)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = _mat(name, col, tinted)
+	mi.scale = Vector3(s, s, s)
+	var bb := mesh.get_aabb()
+	mi.position = Vector3(0, -bb.position.y, nc) * s
+	root.add_child(mi)
+	return root
+
+
 func _sprite(path: String, size: float) -> Sprite3D:
 	var sp := Sprite3D.new()
 	sp.texture = load(path)
@@ -293,50 +318,44 @@ func refresh() -> void:
 		var c: Dictionary = eng.cities[id]
 		var base := world(c["h"]) + Vector3(0, top_y(c["h"]), 0)
 		var col: Color = UI.pcol(c["o"])
-		var st := piece("settlement", col, 0.6)
-		st.position = base + Vector3(0, 0, 0.05)
+		var st := piece_scaled("settlement", col, CITY_SCALE)
+		st.position = base
 		pieces.add_child(st)
-		# posti attorno all'insediamento per edifici e meraviglie (il porto va verso il mare)
-		var ring_slots := []
-		for i in 6:
-			var a := -PI * 0.5 - 0.6 + i * TAU / 6.0
-			ring_slots.append(Vector3(cos(a), 0, sin(a)) * 0.46)
-		var si := 0
+		# edifici e meraviglie si incastrano attorno all'insediamento (la parte incavata verso il centro),
+		# in quattro posti a 90°; il porto guarda verso il suo mare
+		var a0 := _city_a0(c)
+		var order := []
+		if c["b"].has("port"):
+			order.append(["port", UI.pcol(c["b"]["port"]), true])
 		for b in c["b"]:
-			var bc: Color = UI.pcol(c["b"][b])
-			var off: Vector3 = Vector3.ZERO
 			if b != "port":
-				off = ring_slots[si % 6]
-				si += 1
-			if b == "port" and c["port"] != "":
-				var d: Vector3 = (world(c["port"]) - world(c["h"])).normalized()
-				off = d * 0.72
-			var bp := piece(b, bc, 0.48)
-			bp.position = base + off
-			if b == "port" and c["port"] != "":
-				bp.position.y = SEA_TOP
-				bp.look_at_from_position(bp.position, bp.position + (world(c["port"]) - world(c["h"])), Vector3.UP)
+				order.append([b, UI.pcol(c["b"][b]), true])
+		for w in c["w"]:
+			order.append([w, Color.WHITE, false])
+		for i in order.size():
+			var it: Array = order[i]
+			var a: float = a0 + (i % 4) * PI * 0.5
+			var nc: float = 0.66 if it[2] else 0.70
+			var bp := piece_scaled(it[0], it[1], CITY_SCALE, it[2], nc)
+			bp.position = base
+			bp.rotation.y = atan2(cos(a), sin(a))
 			pieces.add_child(bp)
-		for i in c["w"].size():
-			var wp := piece(c["w"][i], Color.WHITE, 0.75, false)
-			wp.position = base + ring_slots[(si + i) % 6] * 1.1
-			pieces.add_child(wp)
 		if c["mood"] != 1:
 			var sp := _sprite("res://assets/tokens/%s.png" % ("happy" if c["mood"] == 2 else "angry"), 0.32)
-			sp.position = base + Vector3(0, 0.75, 0.05)
+			sp.position = base + Vector3(0, 0.62, 0)
 			pieces.add_child(sp)
 		# anello del colore del proprietario
 		var ring := MeshInstance3D.new()
 		var tm := TorusMesh.new()
-		tm.inner_radius = 0.24
-		tm.outer_radius = 0.29
+		tm.inner_radius = 0.33
+		tm.outer_radius = 0.37
 		ring.mesh = tm
 		var rm := StandardMaterial3D.new()
 		rm.albedo_color = col
 		rm.emission_enabled = true
 		rm.emission = col * 0.4
 		ring.material_override = rm
-		ring.position = base + Vector3(0, 0.01, 0.05)
+		ring.position = base + Vector3(0, 0.01, 0)
 		pieces.add_child(ring)
 	# segnalini terra esausta
 	for k in eng.hexes:
@@ -357,13 +376,19 @@ func refresh() -> void:
 	for k in by_hex:
 		var lst: Array = by_hex[k]
 		lst.sort_custom(func(a, b): return a["id"] < b["id"])
-		var has_city: bool = not eng.city_at(k).is_empty()
+		var hc: Dictionary = eng.city_at(k)
+		var has_city: bool = not hc.is_empty()
+		var a_c := _city_a0(hc) if has_city else 0.0
 		var n := lst.size()
 		var base2 := world(k) + Vector3(0, top_y(k), 0)
 		for i in n:
 			var u: Dictionary = lst[i]
 			var ang := TAU * i / maxf(1, n) + 0.5
 			var rad := 0.0 if (n == 1 and not has_city) else (0.62 if has_city else 0.38)
+			if has_city:
+				# negli spazi fra gli edifici, attorno alla città
+				ang = a_c + PI * 0.25 + (i % 4) * PI * 0.5 + (i / 4) * 0.42
+				rad = 0.8 - (i / 4) * 0.08
 			var off := Vector3(cos(ang), 0, sin(ang)) * rad
 			var model: String = u["t"]
 			var hgt: float = {"settler": 0.5, "infantry": 0.55, "ship": 0.5, "cavalry": 0.6, "elephant": 0.62, "leader": 0.66}.get(model, 0.55)

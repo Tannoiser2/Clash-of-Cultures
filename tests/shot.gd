@@ -146,6 +146,8 @@ func _civ_shots(seats: Array) -> void:
 	e.new_city(0, e.neighbors(home).filter(func(x): return e.is_land(x) and e.city_at(x).is_empty())[0], 1)
 	c["b"]["market"] = 0
 	c["b"]["obelisk"] = 0
+	c["b"]["temple"] = 1
+	c["w"].append("great_pyramids")
 	e.new_unit(0, "cavalry", home)
 	e.new_unit(0, "elephant", home)
 	e.players[0]["leader"] = e.players[0]["leaders_avail"].pop_front()
@@ -164,6 +166,14 @@ func _civ_shots(seats: Array) -> void:
 	g.board.t_dist = 5.0
 	await wait(20)
 	await shot("civ_city")
+	g.board.set_selected("")
+	g.board.t_pitch = 0.6
+	g.board.t_dist = 4.0
+	await wait(30)
+	await shot("civ_city_side")
+	g.board.t_yaw += 2.0
+	await wait(30)
+	await shot("civ_city_side2")
 	g._show_civ(0)
 	await wait(5)
 	await shot("civ_board")

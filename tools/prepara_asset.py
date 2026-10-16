@@ -132,7 +132,10 @@ udir = mk('tokens')
 for name, key in (('happy', '6B38025CFF15CE11470B8992'), ('angry', '9B0FDD70F64B137EBAEA4781'),
                   ('culture', '1FC8411CF7A644918FDEC30C'), ('exhausted', 'C5498FDEE4E3C64B7B4D908A'),
                   ('first', '77D1B65EC679ED0668A3CACA')):
-    im = img(key).convert('RGBA'); im.thumbnail((256, 256), Image.LANCZOS); im.save(os.path.join(udir, name + '.png'))
+    im = img(key).convert('RGBA'); im.thumbnail((256, 256), Image.LANCZOS)
+    if name in ('happy', 'angry'):
+        im = im.rotate(180)   # nella texture del modulo le facce sono capovolte
+    im.save(os.path.join(udir, name + '.png'))
 
 # ---------------------------------------------------------------- modelli 3D
 mdir = mk('models')

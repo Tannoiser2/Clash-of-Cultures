@@ -47,6 +47,8 @@ func adv_value(eng, p: int, a: String) -> float:
 	var info: Dictionary = D.adv_info(a)
 	if info["border"] != "":
 		v += 1.0
+	if info["border"] == "c" and eng.has_adv(p, "Engineering") and not eng.players[p]["won"].is_empty():
+		v += 1.5
 	# obiettivi in mano che chiedono una categoria completa
 	var cat_obj := {"militarized": "Warfare", "culture": "Traditions", "enlightened": "Education", "seafarer": "Maritime",
 		"merchant": "Economy", "city_planner": "Construction", "science": "Science"}
@@ -195,13 +197,17 @@ func _turn(eng, p: int) -> Dictionary:
 		# fondare
 		for u in eng.foundable_settlers(p):
 			var sv := spot_value(eng, p, u["h"])
-			if sv >= 3.4 or (sv >= 2.5 and eng.cities_of(p).size() < 3):
+			var tg2 := _settler_target(eng, p, u["h"])
+			if sv >= 4.5 or (sv >= 1.5 and tg2[1] <= sv + 0.3):
 				cands.append([9.0 + sv * 0.3, {"t": "found", "u": u["id"]}])
 		# città
 		for c in eng.cities_of(p):
 			if not eng.can_activate(c):
 				continue
-			var extra_act: float = 2.5 if c["act"] > 0 else 0.0
+			# una seconda attivazione peggiora l'umore: da neutrale ad arrabbiata costa molto
+			var extra_act: float = 0.0
+			if c["act"] > 0:
+				extra_act = 6.0 if c["mood"] == 1 else 3.5
 			if c["mood"] == 0 and c["act"] > 0:
 				continue
 			# raccolta
@@ -225,7 +231,7 @@ func _turn(eng, p: int) -> Dictionary:
 			# meraviglie
 			for w in eng.players[p]["won"]:
 				if eng.can_build_wonder(p, c, w) == "":
-					cands.append([12.0 - extra_act, {"t": "wonder", "c": c["id"], "w": w}])
+					cands.append([18.0 - extra_act, {"t": "wonder", "c": c["id"], "w": w}])
 			# reclutamento
 			var rc := _recruit_plan(eng, p, c)
 			if not rc.is_empty():
@@ -242,7 +248,9 @@ func _turn(eng, p: int) -> Dictionary:
 				if v > bav:
 					bav = v
 					ba = a
-			cands.append([3.0 + bav * 0.55 - _saving_penalty(eng, p, {"food": 2}), {"t": "advance", "a": ba}])
+			# dopo i primi avanzamenti, edifici e meraviglie rendono di più
+			var adv_pen := 1.5 if eng.players[p]["adv"].size() >= 9 else 0.0
+			cands.append([3.0 + bav * 0.55 - adv_pen - _saving_penalty(eng, p, {"food": 2}), {"t": "advance", "a": ba}])
 		# movimento
 		var mv := _best_group_move(eng, p, {})
 		if not mv.is_empty() and mv[0] > 2.0:
@@ -262,6 +270,12 @@ func _turn(eng, p: int) -> Dictionary:
 		if cnd[0] > bv:
 			bv = cnd[0]
 			best = cnd[1]
+	if OS.get_environment("COC_AIDBG") != "":
+		cands.sort_custom(func(x, y): return x[0] > y[0])
+		var top := []
+		for i in mini(5, cands.size()):
+			top.append("%s %.1f" % [cands[i][1].get("t", "") + "_" + str(cands[i][1].get("b", cands[i][1].get("w", ""))), cands[i][0]])
+		print("AIDBG p%d era%d wt=%s mood%d res%s cul%d happy%d | %s" % [p, eng.age, _wonder_target(eng, p), eng.res(p, "mood"), str(eng.players[p]["res"].values()), eng.res(p, "culture"), eng.cities_of(p).filter(func(c): return c["mood"] == 2).size(), ", ".join(top)])
 	var bk := str(best)
 	if best.get("t", "") != "end":
 		tried[bk] = tried.get(bk, 0) + 1
@@ -274,6 +288,10 @@ func _need_weights(eng, p: int) -> Dictionary:
 		var have: int = eng.res(p, r)
 		w[r] = 1.6 - 0.15 * have
 	w["food"] += 0.3
+	# legno e minerale servono per gli edifici
+	for r in ["wood", "ore"]:
+		if eng.res(p, r) < 2:
+			w[r] += 0.5
 	w["mood"] = 1.0 if eng.res(p, "mood") < 3 else 0.6
 	# meraviglia in vista: servono le sue risorse
 	var wt := _wonder_target(eng, p)
@@ -294,7 +312,7 @@ func _saving_penalty(eng, p: int, cost: Dictionary) -> float:
 	var pen := 0.0
 	for r in ["wood", "ore", "food"]:
 		if cost.get(r, 0) > 0 and eng.res(p, r) < need[r]:
-			pen += (2.5 if r != "food" else 1.5) * (2.0 if eng.res(p, "culture") >= 3 else 1.0)
+			pen += (2.5 if r != "food" else 1.5) * (2.0 if eng.res(p, "culture") >= 3 else 1.0) * (1.5 if eng.age >= 3 else 1.0)
 	return pen
 
 
@@ -309,7 +327,8 @@ func _wonder_target(eng, p: int) -> String:
 
 
 func _building_value(eng, p: int, c: Dictionary, b: String) -> float:
-	var v := 6.8
+	# ogni edificio è 1 PV e fa crescere la città (più raccolta e più reclutamento)
+	var v := 9.5 + (1.0 if c["mood"] == 2 else 0.0) + (1.0 if eng.age <= 3 else 0.0)
 	match b:
 		"temple":
 			v += 1.5
@@ -350,7 +369,8 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 		budget -= k
 		v += 5.5 * k + (3.0 if here == 0 else 0.0)
 	# coloni per espandersi
-	if budget > 0 and ncity + settlers < 7 and settlers < 2 and eng.supply_left(p, "settler") > 0:
+	if budget > 0 and ncity + settlers < 7 and settlers < 2 and eng.supply_left(p, "settler") > 0 \
+			and _settler_target(eng, p, c["h"])[1] >= 2.0:
 		comp["settler"] = 2 if (budget >= 2 and ncity < 4 and settlers == 0) else 1
 		budget -= comp["settler"]
 		v += (7.0 if ncity < 4 else 4.0) + (comp["settler"] - 1) * 2.0
@@ -429,16 +449,24 @@ func _happy_plan(eng, p: int) -> Array:
 			v += 2.0
 	# una città felice serve per costruire la meraviglia
 	var wt := _wonder_target(eng, p)
-	if wt != "" and not cs.any(func(c): return c["mood"] == 2) and eng.res(p, "culture") >= 4:
-		v += 5.0
+	if wt != "" and not cs.any(func(c): return c["mood"] == 2) and eng.res(p, "culture") >= 3:
+		var ok_c := false
+		for c in cs:
+			if steps.has(c["id"]) and c["mood"] == 1 and eng.city_size(c) + 1 <= cs.size():
+				ok_c = true
+		if ok_c:
+			v += 7.0
 	return [v, {"t": "happy", "steps": steps}]
 
 
 func _influence_plan(eng, p: int) -> Array:
 	var best := []
+	var saving := _wonder_target(eng, p) != ""
 	for o in eng.influence_options(p):
 		var tg: Dictionary = eng.cities[o["to"]]
 		var need: int = o["need"]
+		if saving and need > 0:
+			continue
 		var v := 3.2 - need * 1.0
 		if tg["o"] == p:
 			v += 1.0
@@ -515,6 +543,8 @@ func _free_move(eng, p: int, w: String) -> Array:
 					if picks.size() >= 3 and eng.valid_collect(c, picks):
 						return [4.0, {"t": "free", "what": "econlib", "c": c["id"], "picks": picks}]
 		"arts":
+			if _wonder_target(eng, p) != "" and eng.res(p, "culture") < 7:
+				return []
 			var inf := _influence_plan(eng, p)
 			if not inf.is_empty() and inf[0] > 2.0:
 				return [inf[0] + 1.0, {"t": "free", "what": "arts", "from": inf[1], "to": inf[2], "b": inf[3]}]
@@ -529,6 +559,9 @@ func _free_move(eng, p: int, w: String) -> Array:
 
 func _move(eng, p: int, req: Dictionary) -> Dictionary:
 	var mv := _best_group_move(eng, p, eng.T.get("mv_this", {}))
+	if OS.get_environment("COC_AIDBG") != "" and not mv.is_empty():
+		var u0: Dictionary = eng.units[mv[1]["units"][0]]
+		print("AIMOVE p%d %s da %s a %s v%.1f" % [p, u0["t"], u0["h"], mv[1]["to"], mv[0]])
 	if mv.is_empty() or mv[0] <= 1.0:
 		return {"done": true}
 	return mv[1]
@@ -563,36 +596,59 @@ func _best_group_move(eng, p: int, moved: Dictionary) -> Array:
 	return best
 
 
+## Miglior posto dove fondare raggiungibile via terra entro 5 passi: [casella, punteggio] (punteggio già
+## scontato della distanza). Le caselle inesplorate di confine valgono come una scommessa media.
+func _settler_target(eng, p: int, from: String) -> Array:
+	var best := ["", -99.0]
+	var seen := {from: 0}
+	var q := [from]
+	while not q.is_empty():
+		var x: String = q.pop_front()
+		var d: int = seen[x]
+		var sc := spot_value(eng, p, x) - 0.55 * d
+		if sc > best[1]:
+			best = [x, sc]
+		if d >= 5:
+			continue
+		for y in eng.neighbors(x):
+			if seen.has(y):
+				continue
+			if not eng.revealed(y):
+				seen[y] = d + 1
+				var se := 2.6 - 0.55 * (d + 1) if eng.age <= 3 else 1.0
+				if se > best[1]:
+					best = [y, se]
+				continue
+			if not eng.is_land(y) or eng.has_enemy(y, p):
+				continue
+			seen[y] = d + 1
+			q.append(y)
+	return best
+
+
 func _settler_move(eng, p: int, ids: Array) -> Array:
 	var u: Dictionary = eng.units[ids[0]]
-	var here := spot_value(eng, p, u["h"]) if u["on"] == -1 else -99.0
-	if here >= 3.4:
+	if u["on"] != -1:
+		return []
+	var here := spot_value(eng, p, u["h"])
+	var tgt := _settler_target(eng, p, u["h"])
+	if tgt[0] == "" or tgt[0] == u["h"] or tgt[1] <= here + 0.3:
 		return []
 	var tg: Dictionary = eng.move_targets(p, ids)
 	var best := []
 	for k in tg:
 		var info: Dictionary = tg[k]
-		if info.get("battle", false):
+		if info.get("battle", false) or not info["kind"] in ["land", "explore"]:
 			continue
-		var v := 0.0
-		if info["kind"] == "explore":
-			v = 4.0
-		elif info["kind"] in ["land", "disembark"]:
-			var sv := spot_value(eng, p, k)
-			# guarda anche un passo più in là
-			var look := sv
-			for y in eng.neighbors(k):
-				look = maxf(look, spot_value(eng, p, y) - 0.8)
-				if not eng.revealed(y):
-					look = maxf(look, 3.5)
-			v = look - maxf(here, 0.0) * 0.5
-			if info.get("roads", false):
-				v -= 1.0
-		else:
+		if info.get("roads", false):
 			continue
-		v += _jitter()
-		if v > 1.2 and (best.is_empty() or v > best[0]):
-			best = [2.0 + v, {"units": ids, "to": k, "roads": false}]
+		var dd: int = eng.hdist(k, tgt[0])
+		var v := 6.0 - dd * 0.8 + _jitter() * 0.2
+		if best.is_empty() or v > best[0]:
+			best = [v, {"units": ids, "to": k, "roads": false}]
+	if best.is_empty() or eng.hdist(best[1]["to"], tgt[0]) >= eng.hdist(u["h"], tgt[0]):
+		return []
+	best[0] = 3.5 + clampf(tgt[1] - here, 0.0, 2.5)
 	return best
 
 
@@ -687,7 +743,7 @@ func _choice(eng, p: int, req: Dictionary) -> int:
 		var a: int = eng._fighters(bt, "att").size()
 		var d: int = eng._fighters(bt, "def").size()
 		return 1 if a < d else 0
-	if title.find("Tempio ti dà") >= 0 or title.find("Nazionalismo") >= 0:
+	if title.find("Tempio ti dà") >= 0 or title.find("Nazionalismo") >= 0 or title.find("ricevi") >= 0:
 		if _wonder_target(eng, p) != "" and eng.res(p, "culture") < 5:
 			return 1
 		return 1 if eng.res(p, "culture") < eng.res(p, "mood") + 1 else 0

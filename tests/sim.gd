@@ -16,6 +16,10 @@ func _initialize() -> void:
 	var wins := [0, 0, 0, 0]
 	var tot := [0.0, 0.0, 0.0, 0.0]
 	var t0 := Time.get_ticks_msec()
+	var stat_b := 0
+	var stat_n := 0
+	var stat_w := 0
+	var stat_c := 0
 	for g in games:
 		var e = load("res://scripts/core/engine.gd").new()
 		e.headless = true
@@ -40,7 +44,14 @@ func _initialize() -> void:
 			var s: Dictionary = r["score"]
 			line += "  %s %.1f (città %d, pezzi %d, av %.1f, ob %d, mer %.1f)" % [e.pname(r["p"]), r["total"], e.cities_of(r["p"]).size(), s["pieces"], s["adv"], s["obj"], s["wonders"]] + (" ev %.1f" % s["events"])
 		print(line)
+		for r in e.results:
+			var s2: Dictionary = r["score"]
+			stat_b += s2["pieces"] - e.cities_of(r["p"]).size()
+			stat_c += e.cities_of(r["p"]).size()
+			stat_n += 1
+		stat_w += e.wonder_builder.size()
 		e.queue_free()
 	print("vittorie: ", wins.slice(0, np), "  media punti: ", tot.slice(0, np).map(func(x): return snappedf(x / games, 0.1)))
+	print("città medie %.1f, edifici medi per giocatore %.1f, meraviglie per partita %.2f" % [float(stat_c) / maxi(1, stat_n), float(stat_b) / maxi(1, stat_n), float(stat_w) / games])
 	print("tempo %d ms" % (Time.get_ticks_msec() - t0))
 	quit()
