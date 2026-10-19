@@ -353,7 +353,7 @@ func _show_civ(p: int) -> void:
 	var pl: Dictionary = engine.players[p]
 	var ck: String = pl["civ"]
 	var civ: Dictionary = CivData.CIVS[ck]
-	var vb := _open_modal("%s — %s" % [civ["it"], engine.pname(p)], 1500)
+	var vb := _open_modal(civ["it"] if engine.pname(p) == civ["it"] else "%s — %s" % [civ["it"], engine.pname(p)], 1500)
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 16)
 	vb.add_child(hb)
@@ -361,23 +361,42 @@ func _show_civ(p: int) -> void:
 	left.custom_minimum_size = Vector2(520, 0)
 	left.add_theme_constant_override("separation", 8)
 	hb.add_child(left)
-	left.add_child(UI.title("Avanzamenti di civiltà", 20, UI.INK))
-	var note := UI.label("Si ottengono gratis quando ottieni l'avanzamento indicato fra parentesi.", 14, UI.INK2)
+	var note := UI.label("Gli avanzamenti di civiltà arrivano gratis quando ottieni l'avanzamento indicato accanto. Cubetto = posseduto.", 14, UI.INK2)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(500, 0)
 	left.add_child(note)
-	for a in civ["adv"]:
+	# la plancia originale, con un cubetto sugli avanzamenti posseduti
+	var BW := 500.0
+	var BH := BW * 1055.0 / 786.0
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(BW, BH)
+	left.add_child(holder)
+	var bimg := TextureRect.new()
+	bimg.texture = UI.tex("res://assets/cards/civ%d.jpg" % int(civ["board"]))
+	bimg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bimg.stretch_mode = TextureRect.STRETCH_SCALE
+	bimg.size = Vector2(BW, BH)
+	bimg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(bimg)
+	var CIV_Y := [0.313, 0.499, 0.684, 0.868]
+	for i in civ["adv"].size():
+		var a: Array = civ["adv"][i]
 		var owned: bool = pl["adv"].has(a[0])
-		var box := PanelContainer.new()
-		box.add_theme_stylebox_override("panel", UI.flat(Color("#c99a43") if owned else Color("#3a2614"), UI.GOLD_DARK, 1, 6, 8))
-		var bvb := VBoxContainer.new()
-		box.add_child(bvb)
 		var req: String = "un avanzamento di governo" if a[2] == "gov" else D.adv_it(a[2])
-		bvb.add_child(UI.label("%s  (%s)%s" % [a[1], req, "  ✓" if owned else ""], 17, UI.DARK if owned else UI.GOLD, UI.font_bold))
-		var tx := UI.label(a[3], 14, UI.DARK if owned else UI.PARCH)
-		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tx.custom_minimum_size = Vector2(500, 0)
-		bvb.add_child(tx)
-		left.add_child(box)
+		var zone := Control.new()
+		zone.position = Vector2(0, BH * (CIV_Y[i] - 0.085))
+		zone.size = Vector2(BW, BH * 0.17)
+		zone.tooltip_text = "%s (con %s)\n%s" % [a[1], req, a[3]]
+		zone.mouse_filter = Control.MOUSE_FILTER_PASS
+		holder.add_child(zone)
+		if owned:
+			var cube := Panel.new()
+			var cs := BW * 0.075
+			cube.position = Vector2(BW * 0.176 - cs / 2.0, BH * CIV_Y[i] - cs / 2.0)
+			cube.size = Vector2(cs, cs)
+			cube.add_theme_stylebox_override("panel", UI.flat(UI.pcol(p), UI.pcol(p).darkened(0.6), 2, 3, 0))
+			cube.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			holder.add_child(cube)
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 8)
 	hb.add_child(right)
@@ -1178,8 +1197,39 @@ func _card_img(id: String, w := 160.0) -> TextureRect:
 	tr.custom_minimum_size = Vector2(w, w * 1.39)
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.tooltip_text = _card_tip(id)
+	tr.tooltip_text = _card_tip(id) + "\n(clic per ingrandire)"
+	tr.mouse_filter = Control.MOUSE_FILTER_STOP
+	tr.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			_zoom_card(UI.card_tex(id)))
 	return tr
+
+
+## Carta ingrandita sopra tutto il resto: un clic la chiude.
+func _zoom_card(t: Texture2D) -> void:
+	var layer := Control.new()
+	layer.size = Vector2(1920, 1080)
+	layer.z_index = 100
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.size = Vector2(1920, 1080)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(dim)
+	var tr := TextureRect.new()
+	tr.texture = t
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var h := 960.0
+	var w := h * float(t.get_width()) / maxf(1.0, float(t.get_height()))
+	tr.size = Vector2(w, h)
+	tr.position = Vector2(960 - w / 2.0, 60)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(tr)
+	layer.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed:
+			layer.queue_free())
+	add_child(layer)
 
 
 func _card_tip(id: String) -> String:

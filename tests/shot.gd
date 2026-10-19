@@ -182,6 +182,16 @@ func _civ_shots(seats: Array) -> void:
 	await wait(5)
 	await shot("civ_board")
 	g._clear_modal()
+	g._show_cards(0)
+	await wait(6)
+	await shot("civ_cards")
+	g._zoom_card(UI.card_tex(g.engine.players[0]["hand"][0]))
+	await wait(4)
+	await shot("civ_zoom")
+	for ch in g.get_children():
+		if ch is Control and ch.z_index == 100:
+			ch.queue_free()
+	g._clear_modal()
 	g._recruit_dialog(0, c)
 	await wait(5)
 	await shot("civ_recruit")

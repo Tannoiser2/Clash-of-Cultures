@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Prepara grafica e dati di Clash of Cultures dal modulo Tabletop Simulator.
+"""
+NB: in assets/cards e assets/ui (player_board, advances_board) ora ci sono le scansioni italiane fornite da
+Stefano (carte, plance delle civiltà, plancia del giocatore): rilanciare questo script le sovrascrive con
+quelle inglesi del modulo TTS.
+Prepara grafica e dati di Clash of Cultures dal modulo Tabletop Simulator.
 
 Uso: python3 tools/prepara_asset.py <cartella sorgente>
 La cartella sorgente contiene img/ (immagini del modulo già ridotte a 4096 px, nome = ultime 24

@@ -31,8 +31,8 @@ Versione digitale per uso personale di **Clash of Cultures: Monumental Edition**
   controllate in automatico), **8 meraviglie** con i loro poteri, fase di status e punteggio finale con gli
   spareggi.
 - **Varianti** del regolamento: partita breve (4 ere) ed eventi solo con le icone.
-- **Testi in italiano**: avanzamenti, carte, eventi e obiettivi tradotti (passa il mouse sopra per leggerli);
-  le immagini delle carte restano quelle originali.
+- **Tutto in italiano**: carte (Azione, Evento, Obiettivo, Meraviglia, Capi), plance delle civiltà e plancia del
+  giocatore sono le scansioni dell'edizione italiana; clic su una carta per ingrandirla.
 
 Semplificazioni: con la Navigazione le navi raggiungono qualsiasi mare sul bordo del tabellone (non solo il primo
 gruppo nella direzione scelta), i pagamenti usano automaticamente prima la risorsa richiesta e poi Oro/Idee, e gli
