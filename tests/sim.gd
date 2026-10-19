@@ -30,7 +30,7 @@ func _initialize() -> void:
 		var civ := OS.get_environment("COC_CIV") != ""
 		e.setup({"seats": seats, "seed": 1000 + g, "opts": {"civ": civ}})
 		if civ and OS.get_environment("COC_FUZZ") != "":
-			# prova di resistenza: tutti hanno tutti gli avanzamenti di civiltà e Capi di ogni civiltà
+			# prova di resistenza: tutti hanno tutti gli avanzamenti di civiltà e Leader di ogni civiltà
 			var all_l: Array = CivData.LEADERS.keys()
 			all_l.sort()
 			e.shuffle(all_l)

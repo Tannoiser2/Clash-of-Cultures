@@ -413,7 +413,7 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 	if budget > 0 and eng.has_adv(p, "Tactics") and _barb_threat(eng, p) > 0 and here < 3 and comp["infantry"] == 0:
 		comp["infantry"] = mini(budget, 2)
 		v += 3.0
-	# espansione: un Capo appena possibile (le sue abilità valgono molto)
+	# espansione: un Leader appena possibile (le sue abilità valgono molto)
 	if eng.exp and budget > 0 and eng.leader_unit(p).is_empty() and eng.can_recruit_type(p, c, "leader") \
 			and eng.res(p, "culture") >= 2 and eng.res(p, "mood") >= 2 and here < 4:
 		comp["leader"] = 1
@@ -446,7 +446,7 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 	return []
 
 
-## Espansione: trasforma la fanteria del reclutamento in un Capo, Cavalleria o Elefanti se possibile.
+## Espansione: trasforma la fanteria del reclutamento in un Leader, Cavalleria o Elefanti se possibile.
 func _upgrade_army(eng, p: int, c: Dictionary, comp: Dictionary, sanit: bool, draft: bool) -> float:
 	var bonus := 0.0
 	if comp["infantry"] == 0:
@@ -879,14 +879,14 @@ func _choice(eng, p: int, req: Dictionary) -> int:
 		return 1 if eng.res(p, "culture") < eng.res(p, "mood") + 1 else 0
 	if title.begins_with("Miti"):
 		return 0 if eng.res(p, "mood") >= 2 else 1
-	if title.begins_with("Arte d'assedio") or title.begins_with("Armi d'acciaio") or title.begins_with("Grande Arena") \
-			or title.begins_with("Assedio") or title.begins_with("Istruzione gratuita") or title.begins_with("Grande Faro"):
+	if title.begins_with("Assedio") or title.begins_with("Armi d'Acciaio") or title.begins_with("Grande Arena") \
+			or title.begins_with("L'Assedio") or title.begins_with("Istruzione Gratuita") or title.begins_with("Grande Faro"):
 		return 0
 	if title.find("lo tieni") >= 0:
 		return 0 if eng.res(p, "culture") >= 2 else 1
 	if title.begins_with("Rivoluzione"):
 		return 0 if eng.units_of(p, "infantry").size() >= 3 else 1
-	if title.begins_with("Moneta"):
+	if title.begins_with("Valuta"):
 		return 0
 	if title.find("Ti ritiri") >= 0:
 		return 0
@@ -945,7 +945,7 @@ func _choice(eng, p: int, req: Dictionary) -> int:
 				bv5 = eng.res(p, keys[o])
 				bi5 = i
 		return bi5
-	if title.begins_with("Boudicca") or title.begins_with("Ashoka") or title.begins_with("Alleati tribali") or title.begins_with("Tribù unne"):
+	if title.begins_with("Boudicca") or title.begins_with("Ashoka") or title.begins_with("Tribù Alleate") or title.begins_with("Tribù Unniche"):
 		return 0
 	if title.begins_with("Regina Didone"):
 		var bt2: Dictionary = eng.battle
@@ -958,7 +958,7 @@ func _choice(eng, p: int, req: Dictionary) -> int:
 		if eng.res(p, "food") >= eng.food_limit(p) and opts.size() > 1:
 			return 1
 		return 0
-	if title.begins_with("Bande armate"):
+	if title.begins_with("Bande Combattenti"):
 		for i in opts.size():
 			if str(opts[i]).ends_with("→ Fanteria"):
 				return i

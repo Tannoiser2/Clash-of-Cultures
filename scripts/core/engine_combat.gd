@@ -170,7 +170,7 @@ func move_targets(p: int, ids: Array) -> Dictionary:
 				continue
 			var battle := _enemy_ship(k, p)
 			out[k] = {"kind": "sea", "battle": battle, "nav": reach[k] is String}
-		# Arte navale: le navi sbarcano trasformandosi in Fanteria o Coloni
+		# Arte Navale: le navi sbarcano trasformandosi in Fanteria o Coloni
 		if civ_adv(p, "Shipcraft"):
 			for x in neighbors(h):
 				if is_land(x) and not has_enemy(x, p) and supply_left(p, "infantry") >= ids.size() \
@@ -229,7 +229,7 @@ func move_targets(p: int, ids: Array) -> Dictionary:
 					out[y] = r2
 				elif not out[y].has("roads"):
 					out[y]["roads_opt"] = true
-		# Strade imperiali (Roma): fino a 4 caselle fra due città romane
+		# Strade Imperiali (Roma): fino a 4 caselle fra due città romane
 		if from_city and civ_adv(p, "Imperial Roads"):
 			var seen2 := {h: 0}
 			var q2 := [h]
@@ -402,7 +402,7 @@ func move_group(p: int, ids: Array, to: String, info: Dictionary, roads := false
 			if leader_is(p, "l25") and leader_at(p, to) and city_at(to).get("o", -9) == p and grp.any(func(u): return u["t"] == "leader"):
 				gain(p, "gold", 1)
 		"shipcraft":
-			# Arte navale (Vichinghi): Fanteria e Coloni diventano Navi
+			# Arte Navale (Vichinghi): Fanteria e Coloni diventano Navi
 			for u in grp:
 				u["t"] = "ship"
 				u["h"] = to
@@ -411,7 +411,7 @@ func move_group(p: int, ids: Array, to: String, info: Dictionary, roads := false
 			log_msg("%s trasforma %d unità in navi." % [pname(p), grp.size()])
 		"unship":
 			var tt := "infantry"
-			if supply_left(p, "settler") >= grp.size() and await choose(p, "Arte navale: le navi diventano…", ["Fanteria", "Coloni"], {"force": true}) == 1:
+			if supply_left(p, "settler") >= grp.size() and await choose(p, "Arte Navale: le navi diventano…", ["Fanteria", "Coloni"], {"force": true}) == 1:
 				tt = "settler"
 			for u in grp:
 				for cg in carried(u["id"]):
@@ -562,10 +562,10 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 	var siege_die := false
 	var siege_hit := false
 	if fortress and has_adv(p, "Siegecraft"):
-		if can_pay(p, {"wood": 2}) and await yes_no(p, "Arte d'assedio: paghi 2 Legno per annullare il dado in più della Fortezza?"):
+		if can_pay(p, {"wood": 2}) and await yes_no(p, "Assedio: paghi 2 Legno per annullare il dado in più della Fortezza?"):
 			pay(p, {"wood": 2})
 			siege_die = true
-		if can_pay(p, {"ore": 2}) and await yes_no(p, "Arte d'assedio: paghi 2 Minerale per annullare il colpo annullato dalla Fortezza?"):
+		if can_pay(p, {"ore": 2}) and await yes_no(p, "Assedio: paghi 2 Minerale per annullare il colpo annullato dalla Fortezza?"):
 			pay(p, {"ore": 2})
 			siege_hit = true
 	var steel := {p: 0, defender: 0}
@@ -577,7 +577,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 		var free: bool = has_adv(side, "Metallurgy") and not both
 		if free:
 			steel[side] = 2
-		elif can_pay(side, {"ore": 1}) and await yes_no(side, "Armi d'acciaio: paghi 1 Minerale per +%d in ogni round?" % (1 if both else 2)):
+		elif can_pay(side, {"ore": 1}) and await yes_no(side, "Armi d'Acciaio: paghi 1 Minerale per +%d in ogni round?" % (1 if both else 2)):
 			pay(side, {"ore": 1})
 			steel[side] = 1 if both else 2
 	var fan := {}
@@ -612,7 +612,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 		if eclipse and defender >= 0 and not def_army.is_empty():
 			eclipse = false
 			one_round = true
-			log_msg("Eclissi solare: la battaglia dura un solo round.")
+			log_msg("Eclisse Solare: la battaglia dura un solo round.")
 		# Cleopatra: per attaccare la sua città bisogna prima togliere la sua Cultura
 		if not c.is_empty() and int(c.get("cleo", 0)) > 0 and c["o"] == defender:
 			lose(p, "culture", int(c["cleo"]))
@@ -664,7 +664,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 		for side in [p, defender]:
 			var other: int = defender if side == p else p
 			if tac[side] == "scouts" and eff[other] != "":
-				log_msg("Esploratori avanzati: %s annulla la carta di %s e la prende." % [pname(side), pname(other)])
+				log_msg("Perlustratori: %s annulla la carta di %s e la prende." % [pname(side), pname(other)])
 				players[side]["hand"].append(eff[other])
 				eff[other] = ""
 				tac[other] = ""
@@ -683,7 +683,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 					discard("action", eff[other], other)
 					eff[other] = ""
 					tac[other] = ""
-				log_msg("Martirio: ciascuno perde un'unità.")
+				log_msg("Martire: ciascuno perde un'unità.")
 		var cancel := {p: 0, defender: 0}
 		for side in [p, defender]:
 			var other: int = defender if side == p else p
@@ -711,7 +711,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 				if is_land(x) and not has_enemy(x, defender):
 					dests.append(x)
 			if not dests.is_empty():
-				var dx := await choose_hex(defender, "Ritirata tattica: dove ti ritiri?", dests)
+				var dx := await choose_hex(defender, "Ritirata Tattica: dove ti ritiri?", dests)
 				for u in _side_units(bt, "def"):
 					if u["t"] != "ship":
 						u["h"] = dx
@@ -756,7 +756,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 		var no_clash_on_def: bool = tac[p] in ["high_ground", "siege"]
 		var no_clash_on_att: bool = tac[defender] == "high_ground"
 		if tac[p] == "siege" and defender >= 0 and can_pay(defender, {"food": 2}):
-			if await yes_no(defender, "Assedio: paghi 2 Cibo per poter attivare le abilità di scontro?"):
+			if await yes_no(defender, "L'Assedio: paghi 2 Cibo per poter attivare le abilità di scontro?"):
 				pay(defender, {"food": 2})
 				no_clash_on_def = false
 		var ra := _roll(A, dice_a - A.size(), not no_clash_on_att and not xa)
@@ -846,7 +846,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 				var extra := _casualties(bt, other_key, 1)
 				killed[side] += extra
 				if extra > 0:
-					log_msg("Rotta: %s elimina un'altra unità." % pname(side))
+					log_msg("Sbaragliare: %s elimina un'altra unità." % pname(side))
 			if tac[side] == "tactical_surprise" and mine_k >= 1 and side >= 0:
 				draw_action(side)
 		_discard_tactics(eff)
@@ -874,7 +874,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 		if one_round:
 			must_retreat = true
 			players[defender]["vp_extra"] += 1.0
-			log_msg("Eclissi solare: %s deve ritirarsi, %s tiene la carta (+1 PV)." % [pname(p), pname(defender)])
+			log_msg("Eclisse Solare: %s deve ritirarsi, %s tiene la carta (+1 PV)." % [pname(p), pname(defender)])
 		if must_retreat or await yes_no(p, "La battaglia continua (%d contro %d). Ti ritiri?" % [A.size(), Dd.size()], "Continua", "Ritirati") == false:
 			retreated = true
 			for u in _side_units(bt, "att"):
@@ -893,7 +893,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 	battle = {}
 	if one_round and att_won:
 		players[p]["vp_extra"] += 1.0
-		log_msg("Eclissi solare: %s vince in un round e tiene la carta (+1 PV)." % pname(p))
+		log_msg("Eclisse Solare: %s vince in un round e tiene la carta (+1 PV)." % pname(p))
 	# coloni del difensore rimasti senza eserciti
 	if att_won:
 		for u in enemy_units_at(h, p):
@@ -954,7 +954,7 @@ func land_battle(p: int, att: Array, h: String, from: String, from_ship: bool) -
 	return {"win": att_won, "defender": defender}
 
 
-# ------------------------------------------------------------------ espansione: capi e civiltà in battaglia
+# ------------------------------------------------------------------ espansione: leader e civiltà in battaglia
 
 func _pre_battle_exp(bt: Dictionary, side: int, army: Array) -> void:
 	if side < 0 or not _leader_in(army, side):
@@ -986,7 +986,7 @@ func _warfare_count(p: int) -> int:
 	return k
 
 
-## Bonus al combattimento dei capi e degli avanzamenti di civiltà per il lato `me` in questo round.
+## Bonus al combattimento dei leader e degli avanzamenti di civiltà per il lato `me` in questo round.
 func _exp_cv(bt: Dictionary, me: int, foe: int, mine: Array, theirs: Array, rnd: int, attacker: bool, card_played: bool) -> int:
 	if not exp or me < 0:
 		return 0
@@ -1079,7 +1079,7 @@ func _exp_cv(bt: Dictionary, me: int, foe: int, mine: Array, theirs: Array, rnd:
 	return b
 
 
-## Colpi annullati da capi e avanzamenti di civiltà (alcuni a pagamento, una volta per battaglia).
+## Colpi annullati da leader e avanzamenti di civiltà (alcuni a pagamento, una volta per battaglia).
 func _exp_cancel(bt: Dictionary, me: int, mine: Array, rnd: int, attacker: bool, incoming: int) -> int:
 	if not exp or me < 0 or incoming <= 0:
 		return 0
@@ -1087,7 +1087,7 @@ func _exp_cancel(bt: Dictionary, me: int, mine: Array, rnd: int, attacker: bool,
 	var h: String = bt["h"]
 	var c := city_at(h)
 	if rnd == 1 and civ_adv(me, "Fireworks") and can_pay(me, {"ore": 1, "wood": 1}):
-		if await yes_no(me, "Fuochi d'artificio: paghi 1 Minerale e 1 Legno per annullare un colpo?"):
+		if await yes_no(me, "Fuochi d'Artificio: paghi 1 Minerale e 1 Legno per annullare un colpo?"):
 			pay(me, {"ore": 1, "wood": 1})
 			k += 1
 	if not _leader_in(mine, me) or k >= incoming:
@@ -1192,7 +1192,7 @@ func _after_battle_exp(bt: Dictionary, p: int, q: int, att_won: bool, def_won: b
 		var lost_army: int = bt["kills"].get(other, 0) + (1 if bt["lk"].has(other) else 0)
 		if civ_adv(side, "Runestones") and lost_army >= 2:
 			players[side]["vp_extra"] += 1.0
-			log_msg("Pietre runiche: %s erige un Obelisco commemorativo (+1 PV)." % pname(side))
+			log_msg("Pietre Runiche: %s erige un Obelisco commemorativo (+1 PV)." % pname(side))
 	if winner >= 0:
 		if civ_adv(winner, "Slave Economy"):
 			gain(winner, "gold", 1)
@@ -1219,7 +1219,7 @@ func _discard_tactics(eff: Dictionary) -> void:
 
 ## Tiro di combattimento con il dado a 12 facce: ogni unità d'armata tira un dado, più gli eventuali dadi extra.
 ## Abilità di scontro (una per unità, una per icona): Fanteria +1, Cavalleria +2, Elefante (il valore
-## non conta ma annulla 1 colpo), Capo (ritira finché non esce un'altra icona).
+## non conta ma annulla 1 colpo), Leader (ritira finché non esce un'altra icona).
 ## Restituisce {"dice": [[valore, icona, attivata, ritirato]…], "cv", "cancel"}.
 func _roll(fighters: Array, extra := 0, clash := true, cav_first := 2) -> Dictionary:
 	var cnt := {"I": 0, "C": 0, "E": 0, "L": 0}

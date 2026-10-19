@@ -194,7 +194,7 @@ func has_adv(p: int, a: String) -> bool:
 		return false
 	if players[p]["adv"].has(a):
 		return true
-	# Uomo-dio (Egitto): ogni avanzamento di Teocrazia dà anche il potere di quello di Autocrazia alla sua sinistra
+	# Uomo Dio (Egitto): ogni avanzamento di Teocrazia dà anche il potere di quello di Autocrazia alla sua sinistra
 	if exp and MAN_GOD.has(a) and players[p]["adv"].has("Man God") and players[p]["adv"].has(MAN_GOD[a]):
 		return true
 	# Grande Biblioteca: un avanzamento dichiarato per il turno
@@ -377,7 +377,7 @@ static func is_army(u: Dictionary) -> bool:
 	return u["t"] in D.ARMY
 
 
-## Edifici e unità in gioco (con l'espansione anche Mercato, Obelisco, Osservatorio, Cavalleria, Elefante, Capo).
+## Edifici e unità in gioco (con l'espansione anche Mercato, Obelisco, Osservatorio, Cavalleria, Elefante, Leader).
 func bld_list() -> Array:
 	return D.BUILDINGS + D.EXP_BUILDINGS if exp else D.BUILDINGS
 
@@ -465,7 +465,7 @@ func remove_unit(u: Dictionary, killer := -9) -> void:
 	units.erase(u["id"])
 
 
-## Il capo è morto o è stato sostituito: la carta va a chi l'ha ucciso in battaglia (2 PV) o nella scatola.
+## Il leader è morto o è stato sostituito: la carta va a chi l'ha ucciso in battaglia (2 PV) o nella scatola.
 func leader_gone(p: int, killer := -9) -> void:
 	if p < 0 or not exp:
 		return
@@ -475,9 +475,9 @@ func leader_gone(p: int, killer := -9) -> void:
 	players[p]["leader"] = ""
 	if killer >= 0 and killer != p:
 		players[killer]["killed_leaders"].append(code)
-		log_msg("%s uccide %s, capo di %s (+2 PV)." % [pname(killer), CivData.LEADERS[code][0], pname(p)])
+		log_msg("%s uccide %s, leader di %s (+2 PV)." % [pname(killer), CivData.LEADERS[code][0], pname(p)])
 	else:
-		log_msg("%s, capo di %s, lascia la scena." % [CivData.LEADERS[code][0], pname(p)])
+		log_msg("%s, leader di %s, lascia la scena." % [CivData.LEADERS[code][0], pname(p)])
 	if civ_adv(p, "Embalming"):
 		gain(p, "culture", 1)
 	# la Cultura di Cleopatra se ne va con lei
@@ -613,13 +613,13 @@ func score(p: int) -> Dictionary:
 		"total": pieces + adv + objs + won + ev}
 
 
-# ------------------------------------------------------------------ espansione: civiltà e capi
+# ------------------------------------------------------------------ espansione: civiltà e leader
 
 func civ_adv(p: int, a: String) -> bool:
 	return exp and p >= 0 and p < n and players[p]["adv"].has(a)
 
 
-## Il capo attivo di p è quello indicato (codice "l41"…) ed è sul tabellone.
+## Il leader attivo di p è quello indicato (codice "l41"…) ed è sul tabellone.
 func leader_is(p: int, code: String) -> bool:
 	return exp and p >= 0 and players[p].get("leader", "") == code and not leader_unit(p).is_empty()
 
@@ -632,7 +632,7 @@ func leader_unit(p: int) -> Dictionary:
 	return {}
 
 
-## Il capo si trova in questa casella.
+## Il leader si trova in questa casella.
 func leader_at(p: int, k: String) -> bool:
 	var lu := leader_unit(p)
 	return not lu.is_empty() and lu["h"] == k
@@ -654,9 +654,9 @@ func pirates() -> Array:
 	return units_of(-2, "ship")
 
 
-# ------------------------------------------------------------------ capi: dove sono
+# ------------------------------------------------------------------ leader: dove sono
 
-## La città (tua) in cui si trova il tuo Capo, se non è a bordo di una nave.
+## La città (tua) in cui si trova il tuo Leader, se non è a bordo di una nave.
 func leader_city(p: int) -> Dictionary:
 	var lu := leader_unit(p)
 	if lu.is_empty() or lu["on"] != -1:
@@ -736,7 +736,7 @@ func draw_objective(p: int, k := 1) -> void:
 
 func draw_wonder(p: int) -> void:
 	var c := ""
-	# Qin Shi Huang e Nabucodonosor II: devono prendere la loro Meraviglia, ovunque sia
+	# Qin Shi Huang e Nebuchadnezzar II: devono prendere la loro Meraviglia, ovunque sia
 	var want: String = {"l14": "great_wall", "l06": "great_gardens"}.get(lcode(p), "")
 	if want != "" and not players[p]["won"].has(want) and wonder_city(want).is_empty():
 		if decks["wonder"].has(want):
@@ -872,6 +872,6 @@ func d6() -> int:
 	return rng.randi_range(1, 6)
 
 
-## Tiro di un dado da combattimento: [valore, icona] (I fanteria, C cavalleria, E elefante, L capo).
+## Tiro di un dado da combattimento: [valore, icona] (I fanteria, C cavalleria, E elefante, L leader).
 func roll_die() -> Array:
 	return D.DIE[rng.randi() % 12]

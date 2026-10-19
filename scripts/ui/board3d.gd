@@ -357,7 +357,7 @@ func refresh() -> void:
 		ring.material_override = rm
 		ring.position = base + Vector3(0, 0.01, 0)
 		pieces.add_child(ring)
-	# segnalini terra esausta
+	# segnalini terreno improduttivo
 	for k in eng.hexes:
 		if eng.hexes[k]["exhausted"]:
 			var sp2 := Sprite3D.new()

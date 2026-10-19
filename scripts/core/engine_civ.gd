@@ -1,5 +1,5 @@
 extends "res://scripts/core/engine_combat.gd"
-## Espansione Civiltà: azioni speciali degli avanzamenti di civiltà e dei Capi, pagamenti alternativi
+## Espansione Civiltà: azioni speciali degli avanzamenti di civiltà e dei Leader, pagamenti alternativi
 ## (Umore, Idee, Prigionieri), influenza estesa, rotte commerciali delle civiltà e altre regole proprie.
 
 # ---- definite in engine.gd (qui servono solo le firme)
@@ -48,16 +48,16 @@ func _choose_player(p: int, title: String, lst: Array) -> int:
 # ------------------------------------------------------------------ azioni speciali dell'espansione
 
 const XNAME := {
-	"x_sacrifice": "Sacrifici umani: un Prigioniero per 1 Cultura o 1 Umore",
+	"x_sacrifice": "Sacrificio Umano: un Prigioniero per 1 Cultura o 1 Umore",
 	"x_hegemony": "Egemonia: una Nave fonda una città sulla costa (azione)",
 	"x_calendar": "Calendario: guarda il prossimo Evento",
-	"x_bands": "Bande armate: Coloni ↔ Fanteria (azione)",
-	"x_tallies": "Alleati tribali: fai comparire i Barbari (azione)",
+	"x_bands": "Bande Combattenti: Coloni ↔ Fanteria (azione)",
+	"x_tallies": "Tribù Alleate: fai comparire i Barbari (azione)",
 	"x_nomads": "Nomadi: una città di dimensione 1 si sposta (azione)",
-	"x_aqueducts": "Acquedotti: Igiene come azione gratuita",
+	"x_aqueducts": "Acquedotti: Fognature come azione gratuita",
 	"x_l41": "Cesare: aumenta la felicità della sua città",
 	"x_l40": "Augusto: carta Azione e Obiettivo (azione, 1 Cultura)",
-	"x_ladv": "Capo: avanzamento per 1 Cultura o 1 Umore (azione)",
+	"x_ladv": "Leader: avanzamento per 1 Cultura o 1 Umore (azione)",
 	"x_l44a": "Erik il Rosso: rivendica la regione (azione, 1 Cultura)",
 	"x_l44b": "Erik il Rosso: sbarco dalla Nave",
 	"x_l43": "Canuto: Tassazione senza Umore (azione)",
@@ -65,7 +65,7 @@ const XNAME := {
 	"x_l35": "Dario: costruisci nella sua città (2 Cultura)",
 	"x_l34": "Ciro: Cultura o Umore per le regioni (azione)",
 	"x_l16": "Cleopatra: 1 Cultura a difesa della sua città",
-	"x_lwonder": "Capo: Meraviglia nella sua città (azione gratuita)",
+	"x_lwonder": "Leader: Meraviglia nella sua città (azione gratuita)",
 	"x_l30": "Suiko: un pezzo influenzato torna tuo (1 Cultura)",
 	"x_l27": "Sri Gupta: avanzamento in una nuova categoria (1 Cultura)",
 	"x_l08": "Annone: muovi un gruppo di Navi",
@@ -243,7 +243,7 @@ func _action_cards(p: int) -> Array:
 	return out
 
 
-## Edifici (e meraviglie) costruibili nella città del Capo, senza attivarla. extra_cul: Cultura già impegnata.
+## Edifici (e meraviglie) costruibili nella città del Leader, senza attivarla. extra_cul: Cultura già impegnata.
 func _builds_in(p: int, c: Dictionary, extra_cul: int) -> Array:
 	var out := []
 	for b in bld_list():
@@ -309,7 +309,7 @@ func exp_special(p: int, w: String, m: Dictionary) -> bool:
 	var lu := leader_unit(p)
 	match w:
 		"x_sacrifice":
-			var i := await choose(p, "Sacrifici umani: un Prigioniero diventa…", ["1 Cultura", "1 Umore", "Annulla"], {"force": true})
+			var i := await choose(p, "Sacrificio Umano: un Prigioniero diventa…", ["1 Cultura", "1 Umore", "Annulla"], {"force": true})
 			if i == 2:
 				return false
 			players[p]["captives"] -= 1
@@ -357,7 +357,7 @@ func exp_special(p: int, w: String, m: Dictionary) -> bool:
 				var labels := ["Fine"]
 				for u in lst:
 					labels.append("%s in %s → %s" % [D.U_NAME[u["t"]], _hex_label(u["h"]), "Fanteria" if u["t"] == "settler" else "Colono"])
-				var jj := await choose(p, "Bande armate: chi trasformi?", labels, {"force": true, "hexes": [""] + lst.map(func(u): return u["h"])})
+				var jj := await choose(p, "Bande Combattenti: chi trasformi?", labels, {"force": true, "hexes": [""] + lst.map(func(u): return u["h"])})
 				if jj == 0:
 					break
 				var uu: Dictionary = lst[jj - 1]
@@ -476,7 +476,7 @@ func exp_special(p: int, w: String, m: Dictionary) -> bool:
 		"x_l35", "x_l02":
 			var opts4 := _builds_in(p, lc, 2 if w == "x_l35" else 0)
 			var lab4 := opts4.map(func(x): return D.B_NAME[x] if D.B_NAME.has(x) else D.WONDERS[x]["it"])
-			var j4 := await choose(p, "Cosa costruisci nella città del Capo?", lab4 + ["Annulla"], {"force": true})
+			var j4 := await choose(p, "Cosa costruisci nella città del Leader?", lab4 + ["Annulla"], {"force": true})
 			if j4 >= opts4.size():
 				return false
 			if w == "x_l35":
@@ -507,7 +507,7 @@ func exp_special(p: int, w: String, m: Dictionary) -> bool:
 			log_msg("Cleopatra protegge la sua città (%d Cultura)." % lc["cleo"])
 		"x_lwonder":
 			var ws := _wonders_in(p, lc)
-			var j6 := await choose(p, "Quale Meraviglia costruisci nella città del Capo?", ws.map(func(x): return D.WONDERS[x]["it"]) + ["Annulla"], {"force": true})
+			var j6 := await choose(p, "Quale Meraviglia costruisci nella città del Leader?", ws.map(func(x): return D.WONDERS[x]["it"]) + ["Annulla"], {"force": true})
 			if j6 >= ws.size():
 				return false
 			await do_wonder(p, lc["id"], ws[j6], false, false)
@@ -588,7 +588,7 @@ func trade_bonus(p: int, tr: Dictionary) -> void:
 				var j := await choose(p, "Pigmalione, mercante del Mediterraneo: ricevi…", ["+1 Oro", "+1 Cultura"], {"force": true})
 				gain(p, "gold" if j == 0 else "culture", 1)
 				break
-	# Predoni (Vichinghi): le navi abbinate a città adiacenti fanno perdere 1 risorsa al proprietario
+	# Saccheggiatori (Vichinghi): le navi abbinate a città adiacenti fanno perdere 1 risorsa al proprietario
 	if civ_adv(p, "Marauders"):
 		var hit := {}
 		for pr in pairs:
@@ -602,7 +602,7 @@ func trade_bonus(p: int, tr: Dictionary) -> void:
 				var have := D.RES.filter(func(r): return res(q, r) > 0)
 				if have.is_empty():
 					continue
-				var jq := await choose(q, "Predoni vichinghi: quale risorsa perdi?", have.map(func(r): return D.RES_NAME[r]), {"force": true})
+				var jq := await choose(q, "Saccheggiatori vichinghi: quale risorsa perdi?", have.map(func(r): return D.RES_NAME[r]), {"force": true})
 				lose(q, have[jq], 1)
 				log_msg("I predoni di %s saccheggiano %s." % [pname(p), pname(q)])
 

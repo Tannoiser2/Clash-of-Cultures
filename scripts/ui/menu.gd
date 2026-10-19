@@ -17,9 +17,9 @@ var msg: Label
 var rows: VBoxContainer
 
 const MOD_LIST := [
-	["civ", "Espansione Civiltà", "Ogni giocatore guida una civiltà (Roma, Egitto, Cina…) con 4 avanzamenti propri e 3 Capi. Aggiunge Cavalleria, Elefanti, Mercati, Obelischi, Osservatori, i Pirati, 20 eventi e 6 obiettivi."],
+	["civ", "Espansione Civiltà", "Ogni giocatore guida una civiltà (Roma, Egitto, Cina…) con 4 avanzamenti propri e 3 Leader. Aggiunge Cavalleria, Elefanti, Mercati, Obelischi, Osservatori, i Pirati, 20 eventi e 6 obiettivi."],
 	["short", "Partita breve (4 ere)", "Variante del regolamento: 4 ere invece di 6, due avanzamenti gratuiti in ogni fase di status."],
-	["no_events", "Eventi solo con le icone", "Variante del regolamento: delle carte Evento si applica solo l'icona in alto (oro, terra esausta, barbari), non il testo."],
+	["no_events", "Eventi solo con le icone", "Variante del regolamento: delle carte Evento si applica solo l'icona in alto (oro, terreno improduttivo, barbari), non il testo."],
 ]
 
 

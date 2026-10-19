@@ -23,7 +23,7 @@ func setup(config: Dictionary) -> void:
 			"won": [], "done": [], "vp_extra": 0.0, "home": "", "events": [], "gov_cubes": 0})
 	n = players.size()
 	if exp:
-		# espansione Civiltà: una civiltà a caso per giocatore, con i suoi 3 capi
+		# espansione Civiltà: una civiltà a caso per giocatore, con i suoi 3 leader
 		var civs: Array = CivData.CIVS.keys()
 		civs.sort()
 		shuffle(civs)
@@ -310,14 +310,14 @@ func after_activation(c: Dictionary) -> void:
 		# Imhotep: +1 Idea quando la sua città si attiva per altro che raccogliere
 		if leader_is(p, "l17") and leader_at(p, c["h"]) and not T.get("act_collect", false):
 			gain(p, "idea", 1)
-		# Città-stato (Grecia): una volta per turno un'altra città si considera attivata al posto di questa
+		# Città Stato (Grecia): una volta per turno un'altra città si considera attivata al posto di questa
 		if c["act"] > 1 and civ_adv(p, "City-States") and not T.get("citystates", false):
 			for x in cities_of(p):
 				if x["id"] != c["id"] and x["act"] == 0 and city_size(x) >= city_size(c) and x["mood"] >= c["mood"]:
 					T["citystates"] = true
 					c["act"] -= 1
 					x["act"] += 1
-					log_msg("Città-stato: %s evita il calo d'umore." % pname(p))
+					log_msg("Città Stato: %s evita il calo d'umore." % pname(p))
 					break
 	if c["act"] > 1:
 		change_mood(c, -1)
@@ -442,7 +442,7 @@ func do_advance(p: int, a: String, free_food := false, from_tracker := true) -> 
 		paid = pay(p, {"food": fc}, ["idea"])
 	await gain_advance(p, a, from_tracker)
 	if has_adv(p, "Free Education") and (paid.get("idea", 0) > 0 or paid.get("gold", 0) > 0) and a != "Free Education" and res(p, "idea") > 0:
-		if await yes_no(p, "Istruzione gratuita: cambiare 1 Idea in 1 Umore?", "Sì, cambia", "No"):
+		if await yes_no(p, "Istruzione Gratuita: cambiare 1 Idea in 1 Umore?", "Sì, cambia", "No"):
 			lose(p, "idea", 1)
 			gain(p, "mood", 1)
 	return true
@@ -450,7 +450,7 @@ func do_advance(p: int, a: String, free_food := false, from_tracker := true) -> 
 
 # ------------------------------------------------------------------ fondazione
 
-## Razziatori (Unni): i coloni nemici entro 2 caselle da un esercito unno, se soli, non fondano né commerciano.
+## Predoni (Unni): i coloni nemici entro 2 caselle da un esercito unno, se soli, non fondano né commerciano.
 func raided(p: int, k: String) -> bool:
 	if not city_at(k).is_empty() or not armies_at(k, p).is_empty():
 		return false
@@ -510,7 +510,7 @@ func do_found(p: int, uid: int) -> bool:
 			var kinds: Array = (["food", "wood", "ore", "idea", "mood", "culture"] as Array).filter(func(r): return res(p, r) > 0)
 			if kinds.is_empty():
 				break
-			var j := await choose(p, "Oro azteco: cambi qualcosa in 1 Oro?", ["No"] + kinds.map(func(r): return D.RES_NAME[r]), {"force": true})
+			var j := await choose(p, "Oro Azteco: cambi qualcosa in 1 Oro?", ["No"] + kinds.map(func(r): return D.RES_NAME[r]), {"force": true})
 			if j == 0:
 				break
 			lose(p, kinds[j - 1], 1)
@@ -542,7 +542,7 @@ func collect_options(c: Dictionary) -> Dictionary:
 				var o2 := _collect_res(p, k, c, false)
 				if not o2.is_empty():
 					far.append({"h": k, "opts": o2, "far": true})
-	# Impero tributario (Aztechi): anche dalle caselle con città nemiche entro 2 (le barbare danno anche Prigionieri)
+	# Tributi all'Impero (Aztechi): anche dalle caselle con città nemiche entro 2 (le barbare danno anche Prigionieri)
 	if civ_adv(p, "Tribute Empire"):
 		for k in within(c["h"], 2, false):
 			var oc := city_at(k)
@@ -905,9 +905,9 @@ func recruit_block(p: int, c: Dictionary, t: String) -> String:
 			return "serve un Mercato"
 		"leader":
 			if players[p].get("no_leader", false):
-				return "niente più Capi (Tu quoque, Brute?)"
+				return "niente più Leader (Anche tu, Bruto?)"
 			if players[p].get("leaders_avail", []).is_empty():
-				return "nessun Capo disponibile"
+				return "nessun Leader disponibile"
 			return ""
 	return ""
 
@@ -916,7 +916,7 @@ func can_recruit_type(p: int, c: Dictionary, t: String) -> bool:
 	return recruit_block(p, c, t) == ""
 
 
-## Elefanti reclutabili qui solo grazie alle Bestie da guerra (costo con Oro).
+## Elefanti reclutabili qui solo grazie alle Bestie da Guerra (costo con Oro).
 func _warbeasts_only(p: int, c: Dictionary) -> bool:
 	if c["b"].has("market") or not civ_adv(p, "Warbeasts"):
 		return false
@@ -929,7 +929,7 @@ func _warbeasts_only(p: int, c: Dictionary) -> bool:
 	return true
 
 
-## Reclutando un Capo: si sceglie una carta fra quelle rimaste (il vecchio Capo viene scartato).
+## Reclutando un Leader: si sceglie una carta fra quelle rimaste (il vecchio Leader viene scartato).
 func _choose_leader(p: int) -> void:
 	var old := leader_unit(p)
 	if not old.is_empty():
@@ -941,12 +941,12 @@ func _choose_leader(p: int) -> void:
 		labels.append("%s — %s: %s / %s: %s" % [L[0], L[3], L[4], L[5], L[6]])
 	var i := 0
 	if av.size() > 1:
-		i = await choose(p, "Quale Capo recluti?", labels, {"force": true, "leaders": av})
+		i = await choose(p, "Quale Leader recluti?", labels, {"force": true, "leaders": av})
 	var code: String = av[i]
 	av.erase(code)
 	players[p]["leader"] = code
 	players[p]["leaders_ever"] += 1
-	log_msg("%s sceglie come Capo %s." % [pname(p), CivData.LEADERS[code][0]])
+	log_msg("%s sceglie come Leader %s." % [pname(p), CivData.LEADERS[code][0]])
 
 
 func recruit_cost(p: int, comp: Dictionary, sanit: bool, draft: bool, c := {}) -> Dictionary:
@@ -957,7 +957,7 @@ func recruit_cost(p: int, comp: Dictionary, sanit: bool, draft: bool, c := {}) -
 			k -= 1
 			cost["mood"] = cost.get("mood", 0) + 1
 		if t == "elephant" and k > 0 and not c.is_empty() and _warbeasts_only(p, c):
-			# Bestie da guerra: senza Mercato ogni Elefante costa 1 Oro al posto di 1 Cibo
+			# Bestie da Guerra: senza Mercato ogni Elefante costa 1 Oro al posto di 1 Cibo
 			cost["gold"] = cost.get("gold", 0) + k
 			cost["food"] = cost.get("food", 0) - k
 		if t == "infantry" and draft and k > 0:
@@ -968,7 +968,7 @@ func recruit_cost(p: int, comp: Dictionary, sanit: bool, draft: bool, c := {}) -
 			cost["mood"] = cost.get("mood", 0) + (2 if has_adv(p, "Civil Liberties") else 1)
 		for r in D.U_COST[t]:
 			cost[r] = cost.get(r, 0) + D.U_COST[t][r] * k
-	# Spartani: Cultura al posto dell'Umore della Leva; Mercenari: Oro
+	# Spartani: Cultura al posto dell'Umore della Coscrizione; Mercenari: Oro
 	if draft and exp and cost.get("mood", 0) > res(p, "mood"):
 		var miss: int = cost["mood"] - res(p, "mood")
 		var sub := "culture" if civ_adv(p, "Spartans") else ("gold" if civ_adv(p, "Mercenaries") else "")
@@ -1006,7 +1006,7 @@ func valid_recruit(p: int, c: Dictionary, comp: Dictionary, sanit := false, draf
 		if t in D.ARMY:
 			n_army += comp[t]
 	if comp.get("leader", 0) > 1:
-		return "un solo Capo"
+		return "un solo Leader"
 	if n_army > 0:
 		var here := armies_at(c["h"], p).size()
 		if comp.get("leader", 0) > 0 and leader_at(p, c["h"]):
@@ -1014,10 +1014,10 @@ func valid_recruit(p: int, c: Dictionary, comp: Dictionary, sanit := false, draf
 		if here + n_army > stack_limit(p, c["h"]):
 			return "massimo %d unità d'armata per casella" % stack_limit(p, c["h"])
 	if sanit and (not has_adv(p, "Sanitation") or comp.get("settler", 0) == 0):
-		return "Igiene non disponibile"
+		return "Fognature non disponibile"
 	var draft_ship: bool = civ_adv(p, "Mercenaries") and comp.get("ship", 0) > 0
 	if draft and (not has_adv(p, "Draft") or (comp.get("infantry", 0) == 0 and not draft_ship)):
-		return "Leva non disponibile"
+		return "Coscrizione non disponibile"
 	if not can_pay(p, recruit_cost(p, comp, sanit, draft, c)):
 		return "risorse insufficienti"
 	return ""
@@ -1038,11 +1038,11 @@ func do_recruit(p: int, cid: int, comp: Dictionary, sanit := false, draft := fal
 		if t == "leader" and k > 0:
 			await _choose_leader(p)
 		if t == "infantry" and k > 0 and draft and T.get("shogun_req", false) and civ_adv(p, "Shogunate") and not T.get("shogun_d", false):
-			# Shogunato: la Leva porta una carta Azione invece di una Fanteria
+			# Shogunato: la Coscrizione porta una carta Azione invece di una Fanteria
 			T["shogun_d"] = true
 			k -= 1
 			draw_action(p)
-			log_msg("Shogunato: %s pesca una carta Azione con la Leva." % pname(p))
+			log_msg("Shogunato: %s pesca una carta Azione con la Coscrizione." % pname(p))
 		for i in k:
 			if supply_left(p, t) <= 0:
 				# pezzo spostato dal tabellone
@@ -1090,7 +1090,7 @@ func do_recruit(p: int, cid: int, comp: Dictionary, sanit := false, draft := fal
 	return true
 
 
-## Dopo il reclutamento: Vercingetorige (schieramento rapido), Espansione (Cina) e Arcieri a cavallo (Unni).
+## Dopo il reclutamento: Vercingetorige (schieramento rapido), Espansione (Cina) e Arcieri a Cavallo (Unni).
 func _after_recruit_exp(p: int, c: Dictionary, comp: Dictionary) -> void:
 	if leader_is(p, "l11") and leader_at(p, c["h"]):
 		var news := []
@@ -1116,7 +1116,7 @@ func _after_recruit_exp(p: int, c: Dictionary, comp: Dictionary) -> void:
 		move_kind = "settlers"
 	elif comp.get("cavalry", 0) > 0 and civ_adv(p, "Mounted Archers"):
 		move_kind = "cavalry"
-	if move_kind != "" and await yes_no(p, "%s: muovi subito %s?" % ["Espansione" if move_kind == "settlers" else "Arcieri a cavallo",
+	if move_kind != "" and await yes_no(p, "%s: muovi subito %s?" % ["Espansione" if move_kind == "settlers" else "Arcieri a Cavallo",
 			"i Coloni nelle città" if move_kind == "settlers" else "la nuova Cavalleria"], "Sì", "No"):
 		T["move_only"] = move_kind
 		T["move_only_h"] = c["h"]
@@ -1197,7 +1197,7 @@ func do_wonder(p: int, cid: int, w: String, activation := true, use_action := tr
 	if int(players[p].get("architect", 0)) > 0:
 		players[p]["architect"] = 0
 		discards["event"].append("e55")
-		log_msg("Il Grande architetto dirige i lavori.")
+		log_msg("Il Grande Architetto dirige i lavori.")
 	if exp and not plan_build(p, cost, c, "wonder").is_empty() and plan_payment(p, cost).is_empty():
 		pay_build(p, cost, c, "wonder")
 	else:
@@ -1234,7 +1234,7 @@ func happy_cost(p: int, steps: Dictionary) -> int:
 	return tot
 
 
-## Paga Umore (con Riti anche risorse, con l'Arena anche Cultura).
+## Paga Umore (con Rituali anche risorse, con l'Arena anche Cultura).
 func can_pay_mood(p: int, amt: int) -> bool:
 	var have := res(p, "mood")
 	if arena(p):
@@ -1323,7 +1323,7 @@ func influence_buildings(p: int, target: Dictionary) -> Array:
 
 
 ## Tentativi possibili: [{from, to, b:[edifici], need, src_h, to_h, label}]. Con l'espansione «to» può
-## indicare un'unità (-(id)-1, Zoroastrismo) e «b» contenere "druid" (Influenza druidica) o "unit".
+## indicare un'unità (-(id)-1, Zoroastrismo) e «b» contenere "druid" (Influenza dei Druidi) o "unit".
 func influence_options(p: int) -> Array:
 	var out := []
 	if T.get("infl_ok", false):
@@ -1354,7 +1354,7 @@ func influence_options(p: int) -> Array:
 			if need > res(p, "culture"):
 				continue
 			out.append({"from": src["from"], "to": tg["id"], "b": bs, "need": need, "src_h": src["h"], "to_h": tg["h"], "label": src["label"]})
-		# Zoroastrismo: un'unità d'armata nemica (non Capo) su una casella senza città
+		# Zoroastrismo: un'unità d'armata nemica (non Leader) su una casella senza città
 		if civ_adv(p, "Zoroastrianism") and not self_only:
 			for u in units.values():
 				if u["o"] == p or u["t"] == "leader" or not is_army(u) or u["on"] != -1 or not city_at(u["h"]).is_empty():
@@ -1377,7 +1377,7 @@ func infl_target_text(o: Dictionary, b: String) -> String:
 		return "%s di %s (Zoroastrismo)" % [D.U_NAME.get(u.get("t", ""), "Unità"), pname(u.get("o", -1))]
 	var tg: Dictionary = cities[o["to"]]
 	if b == "druid":
-		return "Città barbara (Influenza druidica: 1 PV)"
+		return "Città barbara (Influenza dei Druidi: 1 PV)"
 	return "%s nella città di %s" % [D.B_NAME[b], pname(tg["o"])]
 
 
@@ -1521,7 +1521,7 @@ func _augment(uid: int, adj: Dictionary, match_t: Dictionary, seen: Dictionary) 
 
 # ------------------------------------------------------------------ pagamenti alternativi
 
-## Pagamento di un edificio o di una meraviglia con le sostituzioni delle civiltà e dei Capi.
+## Pagamento di un edificio o di una meraviglia con le sostituzioni delle civiltà e dei Leader.
 ## Restituisce il piano {risorsa: quantità, "captives": n} oppure {} se non basta.
 func plan_build(p: int, cost: Dictionary, c: Dictionary, b: String) -> Dictionary:
 	var base := plan_payment(p, cost)
@@ -1570,7 +1570,7 @@ func plan_build(p: int, cost: Dictionary, c: Dictionary, b: String) -> Dictionar
 		if k > 0:
 			plan["captives"] = k
 			short = maxi(0, short - 2 * k)
-	# Architettura (Egitto) ed Economia schiavile (Roma): Umore come qualsiasi risorsa
+	# Architettura (Egitto) ed Schiavismo (Roma): Umore come qualsiasi risorsa
 	if short > 0 and (civ_adv(p, "Architecture") or (civ_adv(p, "Slave Economy") and b in bld_list())):
 		var m2 := mini(short, have["mood"])
 		if m2 > 0:
@@ -1605,7 +1605,7 @@ func pay_build(p: int, cost: Dictionary, c: Dictionary, b: String) -> void:
 			lose(p, r, int(pl[r]))
 
 
-## Costo di una meraviglia con gli sconti dell'espansione (Grande architetto, Serse, Qin, Nabucodonosor).
+## Costo di una meraviglia con gli sconti dell'espansione (Grande Architetto, Serse, Qin, Nebuchadnezzar).
 func wonder_cost(p: int, c: Dictionary, w: String) -> Dictionary:
 	var cost: Dictionary = D.WONDERS[w]["cost"].duplicate()
 	if not exp:

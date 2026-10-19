@@ -1,5 +1,5 @@
 extends SceneTree
-## Prova di tutte le azioni speciali dell'espansione: per ogni Capo e con tutti gli avanzamenti di civiltà,
+## Prova di tutte le azioni speciali dell'espansione: per ogni Leader e con tutti gli avanzamenti di civiltà,
 ## l'IA esegue ogni azione speciale disponibile. godot --headless --path . -s res://tests/exp_specials.gd
 
 func _initialize() -> void:

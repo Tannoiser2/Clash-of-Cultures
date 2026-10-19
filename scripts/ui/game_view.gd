@@ -303,7 +303,7 @@ func _player_row(p: int) -> Control:
 	if engine.exp:
 		var ck: String = pl.get("civ", "")
 		var ld: String = pl.get("leader", "")
-		var cl := UI.label("%s · %s" % [CivData.CIVS[ck]["it"], ("Capo: " + CivData.LEADERS[ld][0]) if ld != "" else "nessun Capo"], 15, UI.GOLD)
+		var cl := UI.label("%s · %s" % [CivData.CIVS[ck]["it"], ("Leader: " + CivData.LEADERS[ld][0]) if ld != "" else "nessun Leader"], 15, UI.GOLD)
 		cl.clip_text = true
 		vb.add_child(cl)
 	# risorse sulla traccia da 0 a 7, come sulla plancia del gioco
@@ -342,13 +342,13 @@ func _player_row(p: int) -> Control:
 	hb2.add_child(b3)
 	if engine.exp:
 		var b4 := UI.button("Civiltà", 90, 32, 13)
-		b4.tooltip_text = "Avanzamenti di civiltà e Capi"
+		b4.tooltip_text = "Avanzamenti di civiltà e Leader"
 		b4.pressed.connect(func(): _show_civ(p))
 		hb2.add_child(b4)
 	return pc
 
 
-## Plancia della civiltà: i 4 avanzamenti propri e i 3 Capi.
+## Plancia della civiltà: i 4 avanzamenti propri e i 3 Leader.
 func _show_civ(p: int) -> void:
 	var pl: Dictionary = engine.players[p]
 	var ck: String = pl["civ"]
@@ -400,7 +400,7 @@ func _show_civ(p: int) -> void:
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 8)
 	hb.add_child(right)
-	right.add_child(UI.title("Capi", 20, UI.INK))
+	right.add_child(UI.title("Leader", 20, UI.INK))
 	var lrow := HBoxContainer.new()
 	lrow.add_theme_constant_override("separation", 12)
 	right.add_child(lrow)
@@ -425,7 +425,7 @@ func _show_civ(p: int) -> void:
 		lrow.add_child(col)
 	var extra := []
 	if pl.get("killed_leaders", []).size() > 0:
-		extra.append("Capi nemici uccisi: %s (2 PV ciascuno)" % ", ".join(pl["killed_leaders"].map(func(x): return CivData.LEADERS[x][0])))
+		extra.append("Leader nemici uccisi: %s (2 PV ciascuno)" % ", ".join(pl["killed_leaders"].map(func(x): return CivData.LEADERS[x][0])))
 	if int(pl.get("captives", 0)) > 0:
 		extra.append("Prigionieri: %d (½ PV ciascuno)" % pl["captives"])
 	if not pl.get("erik", []).is_empty():
@@ -433,7 +433,7 @@ func _show_civ(p: int) -> void:
 	if int(pl.get("anarchy", 0)) > 0:
 		extra.append("Avanzamenti di governo sulla carta Anarchia: %d (1 PV ciascuno)" % pl["anarchy"])
 	if int(pl.get("architect", 0)) > 0:
-		extra.append("Grande architetto: %d Cultura per la prossima Meraviglia" % pl["architect"])
+		extra.append("Grande Architetto: %d Cultura per la prossima Meraviglia" % pl["architect"])
 	if not extra.is_empty():
 		var el := UI.label("\n".join(extra), 15, UI.INK)
 		el.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -449,7 +449,7 @@ const TRACK_COL := {"food": Color("#7fb84a"), "wood": Color("#a0652f"), "ore": C
 
 
 ## Traccia di una risorsa: 7 caselle, piene fino alla quantità posseduta; oltre il limite (Cibo senza
-## Magazzini, Idee con il Dogma) le caselle sono sbarrate.
+## Stoccaggio, Idee con il Dogma) le caselle sono sbarrate.
 func _track(r: String, v: int, lim: int) -> Control:
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 1)
@@ -612,7 +612,7 @@ func _show_dice(d: Dictionary) -> void:
 	tw.tween_property(dice_panel, "modulate:a", 0.0, 0.5)
 
 
-## Un dado: [valore, icona, abilità attivata, ritirato dal Capo]. Sotto il numero l'iniziale dell'icona.
+## Un dado: [valore, icona, abilità attivata, ritirato dal Leader]. Sotto il numero l'iniziale dell'icona.
 func _die(d) -> Control:
 	var v: int = int(d[0]) if d is Array else int(d)
 	var icon: String = str(d[1]) if d is Array else ""
@@ -631,15 +631,15 @@ func _die(d) -> Control:
 	var l := UI.label(str(shown) if not (active and icon == "E") else "x", 22, UI.INK, UI.font_bold)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(l)
-	var ic := UI.label({"I": "Fant", "C": "Cav", "E": "Elef", "L": "Capo"}.get(icon, ""), 11, UI.INK2, UI.font_bold)
+	var ic := UI.label({"I": "Fant", "C": "Cav", "E": "Elef", "L": "Leader"}.get(icon, ""), 11, UI.INK2, UI.font_bold)
 	ic.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(ic)
 	var tip: String = {"I": "Fanteria: +1 se in battaglia c'è una Fanteria", "C": "Cavalleria: +2 se in battaglia c'è una Cavalleria",
-		"E": "Elefante: se c'è un Elefante il dado non conta ma annulla un colpo", "L": "Capo: con un Capo in battaglia si ritira"}.get(icon, "")
+		"E": "Elefante: se c'è un Elefante il dado non conta ma annulla un colpo", "L": "Leader: con un Leader in battaglia si ritira"}.get(icon, "")
 	if active:
 		tip += "\n(abilità attivata)"
 	if rer:
-		tip += "\n(ritirato dal Capo)"
+		tip += "\n(ritirato dal Leader)"
 	pc.tooltip_text = tip
 	l.mouse_filter = Control.MOUSE_FILTER_PASS
 	return pc
@@ -664,7 +664,7 @@ func _on_hover(k: String) -> void:
 		for key in cnt:
 			t += "\n%d × %s" % [cnt[key], key]
 	if engine.hexes[k]["exhausted"]:
-		t += "\nTerra esausta"
+		t += "\nTerreno improduttivo"
 	if hex_choice.has(k):
 		t += "\n» clic per scegliere"
 	tip_lbl.text = t
@@ -753,7 +753,7 @@ func _refresh_info() -> void:
 	if tr != "":
 		info_box.add_child(UI.label("Produce: %s" % D.RES_NAME[tr], 15, UI.PARCH))
 	if engine.hexes[k]["exhausted"]:
-		info_box.add_child(UI.label("Terra esausta: niente raccolta né città.", 15, UI.TERRA))
+		info_box.add_child(UI.label("Terreno improduttivo: niente raccolta né città.", 15, UI.TERRA))
 	var c: Dictionary = engine.city_at(k)
 	if not c.is_empty():
 		var col: Color = UI.pcol(c["o"])
@@ -781,7 +781,7 @@ func _refresh_info() -> void:
 		for u in us:
 			var un: String = D.U_NAME[u["t"]]
 			if u["t"] == "leader" and u["o"] >= 0 and engine.players[u["o"]].get("leader", "") != "":
-				un = "Capo %s" % CivData.LEADERS[engine.players[u["o"]]["leader"]][0]
+				un = "Leader %s" % CivData.LEADERS[engine.players[u["o"]]["leader"]][0]
 			elif u["o"] == -2:
 				un = "Nave pirata"
 			var t := "%s di %s%s" % [un, engine.pname(u["o"]), " (a bordo)" if u["on"] != -1 else ""]
@@ -915,7 +915,7 @@ func _refresh_bar() -> void:
 	bar_title.text = "[b]Tocca a te[/b]: %s. Clicca una tua città o un tuo colono sulla mappa, oppure scegli qui." % (
 		("%d azioni" % acts) if acts != 1 else "1 azione") if acts > 0 else "[b]Azioni finite[/b]: puoi ancora usare le azioni gratuite, poi chiudi il turno."
 	var buy: Array = engine.buyable_advances(p2)
-	# Pace e poesia (India): se manca il Cibo, 1 Umore paga l'avanzamento
+	# Pace e Poesia (India): se manca il Cibo, 1 Umore paga l'avanzamento
 	var pp: bool = engine.civ_adv(p2, "Peace & Poetry") and not engine.T.get("pp", false) and engine.res(p2, "mood") >= 1
 	if pp:
 		for a0 in D.all_advances():
@@ -1378,7 +1378,7 @@ func _show_cards(p: int) -> void:
 				b.pressed.connect(func(): _provide({"t": "card", "id": cid}))
 				box.add_child(b)
 			flow.add_child(box)
-	vb.add_child(UI.label("Le tattiche (metà inferiore delle carte Azione) si giocano in battaglia: serve Tattica.", 15, UI.INK2))
+	vb.add_child(UI.label("Le tattiche (metà inferiore delle carte Azione) si giocano in battaglia: serve Tattiche.", 15, UI.INK2))
 	_close_button(vb)
 
 
@@ -1429,7 +1429,7 @@ func _collect_dialog(p: int, c: Dictionary, free: bool, what := "econlib") -> vo
 			b.toggle_mode = true
 			if r == "captive":
 				b.text = "Prig."
-				b.tooltip_text = "Un Prigioniero (Impero tributario): togli un'unità barbara"
+				b.tooltip_text = "Un Prigioniero (Tributi all'Impero): togli un'unità barbara"
 			else:
 				b.icon = UI.tex("res://assets/icons/%s.png" % r)
 				b.expand_icon = true
@@ -1464,7 +1464,7 @@ func _collect_dialog(p: int, c: Dictionary, free: bool, what := "econlib") -> vo
 		vb.add_child(cb)
 	if not free and engine.civ_adv(p, "Ballcourts") and engine.res(p, "mood") >= 1 and c["mood"] > 0:
 		var cbb := CheckBox.new()
-		cbb.text = "Campi da pelota: paga 1 Umore, la città conta 1 in più"
+		cbb.text = "Campi da Gioco: paga 1 Umore, la città conta 1 in più"
 		cbb.add_theme_color_override("font_color", UI.INK)
 		cbb.toggled.connect(func(on):
 			metal["bc"] = on
@@ -1543,7 +1543,7 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 			plus.disabled = true
 			lb.text += " — " + engine.recruit_block(p, c, t)
 		if t == "leader":
-			lb.tooltip_text = "Scegli uno dei tuoi Capi: un solo Capo alla volta (reclutarne un altro scarta il vecchio)."
+			lb.tooltip_text = "Scegli uno dei tuoi Leader: un solo Leader alla volta (reclutarne un altro scarta il vecchio)."
 			lb.mouse_filter = Control.MOUSE_FILTER_PASS
 		hb.add_child(minus)
 		hb.add_child(val)
@@ -1551,7 +1551,7 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 		vb.add_child(hb)
 	if engine.has_adv(p, "Sanitation"):
 		var cs := CheckBox.new()
-		cs.text = "Igiene: un Colono per 1 Umore"
+		cs.text = "Fognature: un Colono per 1 Umore"
 		cs.add_theme_color_override("font_color", UI.INK)
 		cs.toggled.connect(func(on):
 			flags["sanit"] = on
@@ -1559,7 +1559,7 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 		vb.add_child(cs)
 	if engine.has_adv(p, "Draft"):
 		var cd := CheckBox.new()
-		cd.text = "Leva: una Fanteria per %d Umore" % (2 if engine.has_adv(p, "Civil Liberties") else 1)
+		cd.text = "Coscrizione: una Fanteria per %d Umore" % (2 if engine.has_adv(p, "Civil Liberties") else 1)
 		cd.add_theme_color_override("font_color", UI.INK)
 		cd.toggled.connect(func(on):
 			flags["draft"] = on
@@ -1567,7 +1567,7 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 		vb.add_child(cd)
 	if engine.civ_adv(p, "Ballcourts") and engine.res(p, "mood") >= 1 and c["mood"] > 0:
 		var cbb := CheckBox.new()
-		cbb.text = "Campi da pelota: paga 1 Umore, la città conta 1 in più"
+		cbb.text = "Campi da Gioco: paga 1 Umore, la città conta 1 in più"
 		cbb.add_theme_color_override("font_color", UI.INK)
 		cbb.toggled.connect(func(on):
 			flags["bc"] = on
@@ -1575,7 +1575,7 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 		vb.add_child(cbb)
 	if engine.civ_adv(p, "Shogunate") and engine.has_adv(p, "Draft") and not engine.T.get("shogun_d", false):
 		var csh := CheckBox.new()
-		csh.text = "Shogunato: la Fanteria della Leva diventa una carta Azione"
+		csh.text = "Shogunato: la Fanteria della Coscrizione diventa una carta Azione"
 		csh.add_theme_color_override("font_color", UI.INK)
 		csh.toggled.connect(func(on): flags["shogun"] = on)
 		vb.add_child(csh)
@@ -1596,7 +1596,7 @@ func _recruit_dialog(p: int, c: Dictionary) -> void:
 func _happy_dialog(p: int, voting: bool) -> void:
 	var steps := {}
 	var vb := _open_modal("Aumenta la felicità" + (" (Voto: +1 Umore)" if voting else ""), 640)
-	vb.add_child(UI.label("Ogni passo costa tanti Umore quanto la dimensione della città%s." % (" (con Riti anche risorse)" if engine.has_adv(p, "Rituals") else ""), 16, UI.INK2))
+	vb.add_child(UI.label("Ogni passo costa tanti Umore quanto la dimensione della città%s." % (" (con Rituali anche risorse)" if engine.has_adv(p, "Rituals") else ""), 16, UI.INK2))
 	var cost_l := UI.label("", 18, UI.INK, UI.font_bold)
 	var confirm := UI.primary(UI.button("Conferma", 200, 46))
 	var upd := func():
@@ -1690,7 +1690,7 @@ func _special(p: int, w: String) -> void:
 			_happy_dialog(p, true)
 		"econlib":
 			var cs: Array = engine.cities_of(p).filter(func(c): return engine.can_activate(c))
-			var vb := _open_modal("Libertà economica: quale città raccoglie?", 600)
+			var vb := _open_modal("Libertà Economica: quale città raccoglie?", 600)
 			for c in cs:
 				var b := UI.button("%s (dim. %d)" % [engine._hex_label(c["h"]), engine.city_size(c)], 560, 42, 15)
 				var cc: Dictionary = c
@@ -1700,7 +1700,7 @@ func _special(p: int, w: String) -> void:
 		"arts":
 			_influence_dialog(p, true)
 		"drama":
-			var vb2 := _open_modal("Teatro e musica", 520)
+			var vb2 := _open_modal("Teatro e Musica", 520)
 			var b1 := UI.button("1 Umore → 1 Cultura", 400, 44)
 			b1.disabled = engine.res(p, "mood") < 1
 			b1.pressed.connect(func(): _provide({"t": "free", "what": "drama", "dir": "m2c"}))
@@ -1770,7 +1770,7 @@ func _special(p: int, w: String) -> void:
 			vb4.add_child(ok)
 			_close_button(vb4, "Annulla")
 		"circus":
-			var vb5 := _open_modal("Circo e giochi: quale città?", 640)
+			var vb5 := _open_modal("Circo & Sport: quale città?", 640)
 			for c in engine.cities_of(p):
 				if c["mood"] >= 2:
 					continue

@@ -1,5 +1,5 @@
 extends SceneTree
-## Prova mirata delle battaglie dell'espansione: Capi, Cavalleria, Elefanti, Eclissi, pirati.
+## Prova mirata delle battaglie dell'espansione: Leader, Cavalleria, Elefanti, Eclissi, pirati.
 ## godot --headless --path . -s res://tests/exp_battle.gd
 
 func _initialize() -> void:
@@ -48,5 +48,5 @@ func _initialize() -> void:
 		await e.pirates_event(0)
 		var sc0: Dictionary = e.score(0)
 		e.queue_free()
-	print("vittorie attaccante ", att_wins, "/40, capi uccisi ", kills)
+	print("vittorie attaccante ", att_wins, "/40, leader uccisi ", kills)
 	quit()

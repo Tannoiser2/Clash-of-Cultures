@@ -49,9 +49,9 @@ func do_turn(p: int) -> void:
 	if players[p].get("lose_next", false):
 		T["actions"] -= 1
 		players[p]["lose_next"] = false
-	# Attività bancaria (Persia): con almeno 1 Oro, +1 Oro o +1 Cultura
+	# Attività Bancaria (Persia): con almeno 1 Oro, +1 Oro o +1 Cultura
 	if civ_adv(p, "Banking") and res(p, "gold") >= 1:
-		var bi := await choose(p, "Attività bancaria: ricevi…", ["+1 Oro", "+1 Cultura"], {"force": true})
+		var bi := await choose(p, "Attività Bancaria: ricevi…", ["+1 Oro", "+1 Cultura"], {"force": true})
 		gain(p, "gold" if bi == 0 else "culture", 1)
 	# rotte commerciali a inizio turno
 	if has_adv(p, "Trade Routes"):
@@ -105,10 +105,10 @@ func _trade_income(p: int) -> void:
 	for q in tr.get("markets", []):
 		gain(q, "gold", 1)
 		log_msg("Mercato: %s riceve 1 Oro dalle rotte di %s." % [pname(q), pname(p)])
-	log_msg("Rotte commerciali: %s riceve %d Cibo%s." % [pname(p), got_f, (" e %d Oro" % gold) if gold > 0 else ""])
-	# Moneta: chi lo desidera può prendere Oro al posto del Cibo
+	log_msg("Rotte Commerciali: %s riceve %d Cibo%s." % [pname(p), got_f, (" e %d Oro" % gold) if gold > 0 else ""])
+	# Valuta: chi lo desidera può prendere Oro al posto del Cibo
 	if has_adv(p, "Currency") and got_f > 0:
-		var i := await choose(p, "Moneta: vuoi cambiare il Cibo delle rotte in Oro?", ["Tieni il Cibo", "Cambia %d Cibo in Oro" % got_f], {"force": true})
+		var i := await choose(p, "Valuta: vuoi cambiare il Cibo delle rotte in Oro?", ["Tieni il Cibo", "Cambia %d Cibo in Oro" % got_f], {"force": true})
 		if i == 1:
 			lose(p, "food", got_f)
 			gain(p, "gold", got_f)
@@ -126,7 +126,7 @@ func apply_move(p: int, m: Dictionary) -> bool:
 		"advance":
 			if not main_ok(p) or not can_buy_adv(p, m.get("a", "")):
 				return false
-			# Pace e poesia (India): una volta per turno 1 Umore invece del Cibo
+			# Pace e Poesia (India): una volta per turno 1 Umore invece del Cibo
 			var pp: bool = m.get("pp", false) and civ_adv(p, "Peace & Poetry") and not T.get("pp", false) and res(p, "mood") >= 1
 			if not pp and not can_pay(p, {"food": adv_food_cost(p, m["a"])}, ["idea"]):
 				return false
@@ -243,11 +243,11 @@ func free_name(w: String) -> String:
 	return FREE_NAME.get(w, XNAME.get(w, w))
 
 
-const FREE_NAME := {"voting": "Voto: Aumenta la felicità (1 Umore)", "econlib": "Libertà economica: raccolta (1 Umore)",
-	"arts": "Arti: Influenza la cultura (1 Cultura)", "drama": "Teatro e musica: Umore ↔ Cultura",
-	"bartering": "Baratto: scarta una carta per 1 Oro o 1 Cultura", "absolute": "Potere assoluto: +1 azione (2 Umore)",
-	"taxation": "Tassazione (azione, 1 Umore)", "civil": "Libertà civili: +3 Umore (azione)",
-	"circus": "Circo e giochi (azione)", "forced": "Lavori forzati (1 Umore)",
+const FREE_NAME := {"voting": "Voto: Aumenta la felicità (1 Umore)", "econlib": "Libertà Economica: raccolta (1 Umore)",
+	"arts": "Arti: Influenza la cultura (1 Cultura)", "drama": "Teatro e Musica: Umore ↔ Cultura",
+	"bartering": "Baratto: scarta una carta per 1 Oro o 1 Cultura", "absolute": "Potere Assoluto: +1 azione (2 Umore)",
+	"taxation": "Tassazione (azione, 1 Umore)", "civil": "Libertà Civili: +3 Umore (azione)",
+	"circus": "Circo & Sport (azione)", "forced": "Lavoro Forzato (1 Umore)",
 	"statue": "Grande Statua: scarta un Obiettivo per +1 azione", "library": "Grande Biblioteca: usa un avanzamento"}
 
 
@@ -298,7 +298,7 @@ func free_action(p: int, m: Dictionary) -> bool:
 			elif res(p, "culture") > 0:
 				lose(p, "culture", 1)
 				gain(p, "mood", 1)
-			log_msg("%s usa Teatro e musica." % pname(p))
+			log_msg("%s usa Teatro e Musica." % pname(p))
 			return true
 		"bartering":
 			var id: String = m.get("card", "")
@@ -318,7 +318,7 @@ func free_action(p: int, m: Dictionary) -> bool:
 			T["absolute"] = true
 			lose(p, "mood", 2)
 			T["actions"] += 1
-			log_msg("%s usa il Potere assoluto: un'azione in più." % pname(p))
+			log_msg("%s usa il Potere Assoluto: un'azione in più." % pname(p))
 			return true
 		"taxation":
 			var k := cities_of(p).size()
@@ -340,7 +340,7 @@ func free_action(p: int, m: Dictionary) -> bool:
 		"civil":
 			spend_action(false)
 			gain(p, "mood", 3)
-			log_msg("%s: Libertà civili, +3 Umore." % pname(p))
+			log_msg("%s: Libertà Civili, +3 Umore." % pname(p))
 			return true
 		"circus":
 			var c2: Dictionary = cities.get(int(m.get("c", -1)), {})
@@ -355,7 +355,7 @@ func free_action(p: int, m: Dictionary) -> bool:
 		"forced":
 			T["forced"] = true
 			lose(p, "mood", 1)
-			log_msg("%s impone i Lavori forzati." % pname(p))
+			log_msg("%s impone i Lavoro Forzato." % pname(p))
 			return true
 		"statue":
 			var oid: String = m.get("card", "")
@@ -623,7 +623,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 			_use_card(p, id)
 			await gain_advance(p, await _choose_adv(p, "Ispirazione: quale avanzamento?", lst2), false)
 		"tech_exchange":
-			var q2 := await _choose_player(p, "Scambio tecnologico con…", _near_players(p))
+			var q2 := await _choose_player(p, "Scambio Tecnologico con…", _near_players(p))
 			var mine := []
 			for a in players[q2]["adv"]:
 				if can_buy_adv(p, a):
@@ -637,7 +637,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 				if can_buy_adv(q2, a):
 					theirs.append(a)
 			if not theirs.is_empty():
-				await gain_advance(q2, await _choose_adv(q2, "Scambio tecnologico: quale avanzamento copi da %s?" % pname(p), theirs), false)
+				await gain_advance(q2, await _choose_adv(q2, "Scambio Tecnologico: quale avanzamento copi da %s?" % pname(p), theirs), false)
 		"assassination":
 			var lst3 := []
 			for q in n:
@@ -654,7 +654,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 			for q in n:
 				if q != p:
 					lst4.append(q)
-			var q4 := await _choose_player(p, "Trattative con…", lst4)
+			var q4 := await _choose_player(p, "Negoziati con…", lst4)
 			negotiation["%d,%d" % [mini(p, q4), maxi(p, q4)]] = turn_count + n
 		"spies":
 			var lst5 := []
@@ -687,7 +687,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 					for d in drawn:
 						labels.append("Dai «%s», prendi «%s»" % [D.card_title(mine_o), D.card_title(d)])
 						pairs.append([mine_o, d])
-				var j := await choose(p, "Nuovi obiettivi", labels, {"force": true})
+				var j := await choose(p, "Nuovi Obiettivi", labels, {"force": true})
 				if j > 0:
 					players[p]["obj"].erase(pairs[j][0])
 					players[p]["obj"].append(pairs[j][1])
@@ -707,7 +707,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 			if opts2.is_empty():
 				return false
 			_use_card(p, id, 1)
-			var j2 := await choose(p, "Crescita urbana: cosa costruisci?", labels2, {"force": true})
+			var j2 := await choose(p, "Espansione Urbana: cosa costruisci?", labels2, {"force": true})
 			T["actions"] += 0
 			await do_build(p, opts2[j2][0], opts2[j2][1], true, true, true)
 		"tech_synergy":
@@ -725,7 +725,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 				return false
 			_use_card(p, id)
 			spend_action(false)
-			var ci := await choose(p, "Sinergia tecnologica: quale categoria?", cats.map(func(c): return D.CAT_NAME[c]), {"force": true})
+			var ci := await choose(p, "Sinergia Tecnologica: quale categoria?", cats.map(func(c): return D.CAT_NAME[c]), {"force": true})
 			for i in 2:
 				var av2 := []
 				for a in D.ADV[cats[ci]]:
@@ -733,7 +733,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 						av2.append(a[0])
 				if av2.is_empty() or not can_pay(p, {"food": 2}, ["idea"]):
 					break
-				var a2 := await _choose_adv(p, "Sinergia tecnologica: avanzamento %d" % (i + 1), av2)
+				var a2 := await _choose_adv(p, "Sinergia Tecnologica: avanzamento %d" % (i + 1), av2)
 				pay(p, {"food": adv_food_cost(p, a2)}, ["idea"])
 				await gain_advance(p, a2, false)
 		"idea_synergy":
@@ -742,7 +742,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 				return false
 			_use_card(p, id)
 			spend_action(false)
-			var a3 := await _choose_adv(p, "Sinergia di idee: quale avanzamento?", lst6)
+			var a3 := await _choose_adv(p, "Sinergia di Idee: quale avanzamento?", lst6)
 			pay(p, {"food": adv_food_cost(p, a3)}, ["idea"])
 			await gain_advance(p, a3, false)
 			gain(p, "idea", 2)
@@ -750,7 +750,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 			_use_card(p, id)
 			var cs := cities_of(p).filter(func(c): return c["mood"] < 2)
 			if not cs.is_empty():
-				var c4 := await _choose_city(p, "Generale eroico: quale città migliora?", cs)
+				var c4 := await _choose_city(p, "Generale Eroe: quale città migliora?", cs)
 				change_mood(c4, 1)
 				cs = cities_of(p).filter(func(c): return c["mood"] < 2)
 				if not cs.is_empty() and res(p, "mood") >= 1 and await yes_no(p, "Paghi 1 Umore per un altro passo?"):
@@ -769,7 +769,7 @@ func _play_card_effect(p: int, id: String, k: String) -> bool:
 			if lst7.is_empty():
 				return false
 			_use_card(p, id)
-			await gain_advance(p, await _choose_adv(p, "Insegnateci! Quale avanzamento copi?", lst7), false)
+			await gain_advance(p, await _choose_adv(p, "Adesso Istruiteci! Quale avanzamento copi?", lst7), false)
 		"cultural_awe":
 			return await _cultural_awe(p, id)
 		"mercenaries":
@@ -843,7 +843,7 @@ func _cultural_awe(p: int, id: String) -> bool:
 	if targets.is_empty():
 		return false
 	var keys := targets.map(func(t): return t[1]["h"])
-	var k := await choose_hex(p, "Soggezione culturale: quale città barbara?", keys)
+	var k := await choose_hex(p, "Soggezione Culturale: quale città barbara?", keys)
 	var t: Array = targets[keys.find(k)]
 	_use_card(p, id)
 	spend_action(false)
@@ -931,10 +931,10 @@ func _great_person(p: int, id: String, k: String) -> bool:
 				break
 			var j := 0
 			if drawn.size() > 1:
-				j = await choose(p, "Grande oracolo: quale Obiettivo dai a %s?" % ("te stesso" if q == p else pname(q)), drawn.map(func(o): return D.card_title(o)), {"force": true})
+				j = await choose(p, "Grande Oracolo: quale Obiettivo dai a %s?" % ("te stesso" if q == p else pname(q)), drawn.map(func(o): return D.card_title(o)), {"force": true})
 			oracle[q] = drawn[j]
 			drawn.remove_at(j)
-		log_msg("Il Grande oracolo assegna a ciascuno il prossimo Obiettivo.")
+		log_msg("Il Grande Oracolo assegna a ciascuno il prossimo Obiettivo.")
 		changed.emit()
 		return true
 	var cat: String = D.GREAT_PERSON_CAT[k]
@@ -969,7 +969,7 @@ func _great_person(p: int, id: String, k: String) -> bool:
 				opts3.append("Cambia tutta la Cultura (%d) in Umore" % res(p, "culture"))
 			if res(p, "mood") > 0:
 				opts3.append("Cambia tutto l'Umore (%d) in Cultura" % res(p, "mood"))
-			var j2 := await choose(p, "Grande atleta: converti?", opts3, {"force": true})
+			var j2 := await choose(p, "Grande Atleta: converti?", opts3, {"force": true})
 			if j2 > 0:
 				var from_c: bool = opts3[j2].begins_with("Cambia tutta la Cultura")
 				var amt := res(p, "culture") if from_c else res(p, "mood")
@@ -997,7 +997,7 @@ func _great_person(p: int, id: String, k: String) -> bool:
 						opts2.append([c["id"], b])
 						labels.append("%s a %s" % [D.B_NAME[b], _hex_label(c["h"])])
 			if not opts2.is_empty():
-				var j := await choose(p, "Grande ingegnere: cosa costruisci?", ["Niente"] + labels, {"force": true})
+				var j := await choose(p, "Grande Ingegnere: cosa costruisci?", ["Niente"] + labels, {"force": true})
 				if j > 0:
 					await do_build(p, opts2[j - 1][0], opts2[j - 1][1], false, false, false)
 	changed.emit()
@@ -1011,14 +1011,14 @@ func resolve_event(p: int) -> void:
 		plague_by = -1
 		log_msg("La Peste è finita.")
 	if civ_adv(p, "Star Catalogues"):
-		var sc := await choose(p, "Cataloghi stellari: prima dell'evento ricevi…", ["+1 Idea", "+1 Cultura"], {"force": true})
+		var sc := await choose(p, "Cataloghi Stellari: prima dell'evento ricevi…", ["+1 Idea", "+1 Cultura"], {"force": true})
 		gain(p, "idea" if sc == 0 else "culture", 1)
 	var id := draw("event", p)
 	if id == "":
 		return
-	# Sacrifici umani (Aztechi): un Prigioniero annulla l'evento appena pescato
+	# Sacrificio Umano (Aztechi): un Prigioniero annulla l'evento appena pescato
 	if civ_adv(p, "Human Sacrifice") and int(players[p].get("captives", 0)) > 0:
-		if await yes_no(p, "Sacrifici umani: sacrifichi un Prigioniero per annullare «%s» e pescarne un altro?" % D.EVENTS[id][0]):
+		if await yes_no(p, "Sacrificio Umano: sacrifichi un Prigioniero per annullare «%s» e pescarne un altro?" % D.EVENTS[id][0]):
 			players[p]["captives"] -= 1
 			discard("event", id, p)
 			log_msg("%s sacrifica un Prigioniero: l'evento «%s» è annullato." % [pname(p), D.EVENTS[id][0]])
@@ -1059,9 +1059,9 @@ func _exhaust(p: int) -> void:
 				cand[x] = true
 	if cand.is_empty():
 		return
-	var k := await choose_hex(p, "Terra esausta: dove metti il segnalino?", cand.keys())
+	var k := await choose_hex(p, "Terreno improduttivo: dove metti il segnalino?", cand.keys())
 	hexes[k]["exhausted"] = true
-	log_msg("Una terra di %s si esaurisce." % pname(p))
+	log_msg("Un terreno di %s diventa improduttivo." % pname(p))
 
 
 ## Peggiora l'umore di una città per un evento (con Miti si può pagare 1 Umore per evitarlo).
@@ -1125,7 +1125,7 @@ func _event_effect(p: int, id: String, key: String) -> bool:
 				for i in (2 if _spread3(q) else 1):
 					await event_mood(q, await _event_city(q, "Peste: quale città peggiora l'umore?"))
 			plague_by = p
-			log_msg("Peste: chi non ha Igiene non può costruire finché %s non pesca un altro evento." % pname(p))
+			log_msg("Peste: chi non ha Fognature non può costruire finché %s non pesca un altro evento." % pname(p))
 		"epidemic":
 			for q in _order_from(p):
 				if has_adv(q, "Sanitation") or units_of(q).size() < 2:
@@ -1169,7 +1169,7 @@ func _event_effect(p: int, id: String, key: String) -> bool:
 					gain(await _food_target(p, "Splendido anno: a chi dai 1 Cibo (%d di 3)?" % (i + 1)), "food", 1)
 		"boom":
 			if supply_left(p, "settler") > 0 and not cities_of(p).is_empty():
-				var c := await _choose_city(p, "Boom demografico: dove metti il Colono?", cities_of(p))
+				var c := await _choose_city(p, "Boom Demografico: dove metti il Colono?", cities_of(p))
 				new_unit(p, "settler", c["h"])
 			var lst := []
 			for q in n:
@@ -1177,7 +1177,7 @@ func _event_effect(p: int, id: String, key: String) -> bool:
 					lst.append(q)
 			if not lst.is_empty():
 				var q2 := await _choose_player(p, "Chi riceve anche un Colono?", lst)
-				var c2 := await _choose_city(q2, "Boom demografico: dove metti il Colono?", cities_of(q2))
+				var c2 := await _choose_city(q2, "Boom Demografico: dove metti il Colono?", cities_of(q2))
 				new_unit(q2, "settler", c2["h"])
 		"migration":
 			var lst2 := []
@@ -1194,21 +1194,21 @@ func _event_effect(p: int, id: String, key: String) -> bool:
 					new_unit(q3, "settler", c3["h"])
 			await event_mood(p, await _event_city(p, "Migrazione: quale tua città peggiora l'umore?"))
 		"local_flood":
-			await event_mood(p, await _event_city(p, "Alluvione: quale città costiera?", func(c): return is_coastal(c)))
+			await event_mood(p, await _event_city(p, "Inondazione Locale: quale città costiera?", func(c): return is_coastal(c)))
 		"major_flood":
 			for q in _order_from(p):
-				await event_mood(q, await _event_city(q, "Grande alluvione: quale città costiera?", func(c): return is_coastal(c)))
+				await event_mood(q, await _event_city(q, "Grande Inondazione: quale città costiera?", func(c): return is_coastal(c)))
 		"civil_war":
 			var cs := []
 			for c in cities_of(p):
 				if c["mood"] < 2 and not armies_at(c["h"], p).is_empty():
 					cs.append(c)
 			if not cs.is_empty():
-				var c4 := await _choose_city(p, "Guerra civile: quale città?", cs)
+				var c4 := await _choose_city(p, "Guerra Civile: quale città?", cs)
 				remove_unit(armies_at(c4["h"], p)[0])
 				await event_mood(p, c4)
 			else:
-				await event_mood(p, await _event_city(p, "Guerra civile: quale città peggiora l'umore?"))
+				await event_mood(p, await _event_city(p, "Guerra Civile: quale città peggiora l'umore?"))
 		"revolution":
 			var g := gov_of(p)
 			var army := units_of(p, "infantry")
@@ -1285,7 +1285,7 @@ func _exp_event(p: int, id: String, key: String) -> bool:
 			gain(p, "culture", 1)
 			if n > 1:
 				var others := range(n).filter(func(q): return q != p)
-				var q := await _choose_player(p, "Incontro di ambasciatori: chi riceve 1 Cultura?", others)
+				var q := await _choose_player(p, "Gli Emissari si Incontrano: chi riceve 1 Cultura?", others)
 				gain(q, "culture", 1)
 			var w := draw("wonder", p)
 			if w != "":
@@ -1293,7 +1293,7 @@ func _exp_event(p: int, id: String, key: String) -> bool:
 				log_msg("Sul tavolo compare la Meraviglia %s: chi deve pescarne una la prende." % D.WONDERS[w]["it"])
 		"eclipse":
 			eclipse = true
-			log_msg("Eclissi solare: la prossima battaglia fra giocatori durerà un solo round.")
+			log_msg("Eclisse Solare: la prossima battaglia fra giocatori durerà un solo round.")
 			return true
 		"trojan":
 			trojan = true
@@ -1305,10 +1305,10 @@ func _exp_event(p: int, id: String, key: String) -> bool:
 				remove_unit(lu)
 			if players[p]["no_leader"] or players[p]["leaders_avail"].is_empty():
 				return false
-			var i := await choose(p, "Tu quoque, Brute? Cosa scegli?", ["Un nuovo Capo, gratis in una tua città", "Tieni la carta (2 PV): niente più Capi"], {"force": true})
+			var i := await choose(p, "Anche tu, Bruto? Cosa scegli?", ["Un nuovo Leader, gratis in una tua città", "Tieni la carta (2 PV): niente più Leader"], {"force": true})
 			if i == 0 and not cities_of(p).is_empty():
 				await _choose_leader(p)
-				var c := await _choose_city(p, "Dove arriva il nuovo Capo?", cities_of(p))
+				var c := await _choose_city(p, "Dove arriva il nuovo Leader?", cities_of(p))
 				new_unit(p, "leader", c["h"])
 			else:
 				players[p]["no_leader"] = true
@@ -1345,7 +1345,7 @@ func _exp_event(p: int, id: String, key: String) -> bool:
 				if q == p:
 					k5 = maxi(1, k5)
 				for i2 in k5:
-					var j := await choose(q, "Era di stabilità: ricevi… (%d di %d)" % [i2 + 1, k5], ["+1 Umore", "+1 Cultura"], {"force": true})
+					var j := await choose(q, "Era di Stabilità: ricevi… (%d di %d)" % [i2 + 1, k5], ["+1 Umore", "+1 Cultura"], {"force": true})
 					gain(q, "mood" if j == 0 else "culture", 1)
 		"reformation":
 			var victim := -1
@@ -1374,9 +1374,9 @@ func _exp_event(p: int, id: String, key: String) -> bool:
 					continue
 				var k6 := us.size() / 4 + (1 if _spread3(q) else 0)
 				for i4 in k6:
-					await _lose_unit(q, "Peste nera: quale unità perdi (1 PV)?")
+					await _lose_unit(q, "Morte Nera: quale unità perdi (1 PV)?")
 				players[q]["vp_extra"] += float(k6)
-				log_msg("Peste nera: %s perde %d unità (+%d PV)." % [pname(q), k6, k6])
+				log_msg("Morte Nera: %s perde %d unità (+%d PV)." % [pname(q), k6, k6])
 		"pests":
 			for q in _order_from(p):
 				if has_adv(q, "Irrigation") or civ_adv(q, "Aqueducts") or not has_adv(q, "Storage"):
@@ -1411,7 +1411,7 @@ func _exp_event(p: int, id: String, key: String) -> bool:
 			if fc.is_empty():
 				lose(p, "wood", 1)
 				return false
-			var start := await _choose_city(p, "Incendio: quale tua città in Foresta brucia?", fc)
+			var start := await _choose_city(p, "Incendio Boschivo: quale tua città in Foresta brucia?", fc)
 			var seen := {start["h"]: true}
 			var qq := [start["h"]]
 			while not qq.is_empty():
@@ -1608,15 +1608,15 @@ func _great_person_keep(p: int, id: String) -> bool:
 			match D.EVENTS[id][2]:
 				"gp_architect":
 					players[q]["architect"] = 3
-					log_msg("Grande architetto: 3 Cultura per la prossima Meraviglia di %s." % pname(q))
+					log_msg("Grande Architetto: 3 Cultura per la prossima Meraviglia di %s." % pname(q))
 				"gp_diplomat":
 					var others := range(n).filter(func(x): return x != q)
 					if others.is_empty():
 						discards["event"].append(id)
 					else:
-						var b := await _choose_player(q, "Grande diplomatico: con chi stringi il patto?", others)
+						var b := await _choose_player(q, "Grande Diplomatico: con chi stringi il patto?", others)
 						diplomat = {"a": q, "b": b}
-						log_msg("Grande diplomatico: chi fra %s e %s attacca l'altro dovrà pagargli 2 Cultura." % [pname(q), pname(b)])
+						log_msg("Grande Diplomatico: chi fra %s e %s attacca l'altro dovrà pagargli 2 Cultura." % [pname(q), pname(b)])
 				_:
 					players[q]["hand"].append(id)
 			return true
@@ -1699,18 +1699,18 @@ func barbarians_move(p: int) -> void:
 			for g0 in groups.keys():
 				if hdist(g0, sh) <= 2 and (q == p or not await yes_no(q, "Silla: lasci muovere i Barbari vicini a lui verso %s?" % pname(p))):
 					groups.erase(g0)
-		# Alleati tribali (Celti): 1 Cibo per fermare i Barbari
+		# Tribù Alleate (Celti): 1 Cibo per fermare i Barbari
 		if civ_adv(p, "Tribal Allies") and res(p, "food") >= 1 and not groups.is_empty():
-			if await yes_no(p, "Alleati tribali: paghi 1 Cibo perché i Barbari non si muovano?"):
+			if await yes_no(p, "Tribù Alleate: paghi 1 Cibo perché i Barbari non si muovano?"):
 				lose(p, "food", 1)
 				groups.clear()
-		# Tribù unne: 1 Oro o 1 Cultura per mandare i Barbari verso le città degli altri
+		# Tribù Unniche: 1 Oro o 1 Cultura per mandare i Barbari verso le città degli altri
 		if civ_adv(p, "Hunnic Tribes") and (res(p, "gold") >= 1 or res(p, "culture") >= 1) and not groups.is_empty():
 			var others := []
 			for id in cities:
 				if cities[id]["o"] >= 0 and cities[id]["o"] != p:
 					others.append(cities[id]["h"])
-			if not others.is_empty() and await yes_no(p, "Tribù unne: paghi 1 Oro o 1 Cultura per dirigere i Barbari verso gli avversari?"):
+			if not others.is_empty() and await yes_no(p, "Tribù Unniche: paghi 1 Oro o 1 Cultura per dirigere i Barbari verso gli avversari?"):
 				lose(p, "gold" if res(p, "gold") >= 1 else "culture", 1)
 				mine = others
 		if groups.is_empty():
