@@ -98,7 +98,8 @@ scripts/ui/menu.gd              menu e stanze online
 scripts/net/                    Firebase (REST) e partita online in lockstep
 tools/prepara_asset.py          estrae tessere, carte, modelli e disposizioni dal modulo TTS
 tools/sintetizza_audio.py       musica
-tests/                          sim.gd (IA contro IA), shot.gd (screenshot), online_play.gd + firebase_mock.py
+tests/                          sim.gd (IA contro IA), ai_stats.gd (comportamento dell'IA), duel.gd + ai_old.gd
+                                (nuova IA contro la precedente), shot.gd (screenshot), online_play.gd + firebase_mock.py
 ```
 
 ## Test
@@ -107,6 +108,8 @@ godot --headless --path . -s res://tests/sim.gd -- 10 4 1,1,2,1     # 10 partite
 COC_CIV=1 godot --headless --path . -s res://tests/sim.gd -- 10 4    # le stesse con l'espansione Civiltà
 COC_CIV=1 COC_FUZZ=1 godot --headless --path . -s res://tests/sim.gd -- 6 4   # tutti con tutte le abilità
 godot --headless --path . -s res://tests/exp_specials.gd             # ogni azione speciale dell'espansione
+godot --headless --path . -s res://tests/ai_stats.gd -- 12 4         # battaglie, reclutamenti, meraviglie, risorse ferme
+godot --headless --path . -s res://tests/duel.gd -- 48 4             # IA attuale contro la versione precedente
 xvfb-run godot --path . -s res://tests/shot.gd -- game 6             # screenshot in user://shots
 xvfb-run godot --path . -s res://tests/shot.gd -- civ                # screenshot dell'espansione
 ```

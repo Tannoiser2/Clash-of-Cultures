@@ -439,7 +439,9 @@ func do_advance(p: int, a: String, free_food := false, from_tracker := true) -> 
 	if fc > 0:
 		if not can_pay(p, {"food": fc}, ["idea"]):
 			return false
-		paid = pay(p, {"food": fc}, ["idea"])
+		# si pagano prima le Idee (servono solo per gli avanzamenti), poi il Cibo
+		var ui := mini(fc, res(p, "idea"))
+		paid = pay(p, {"idea": ui, "food": fc - ui}, ["idea"])
 	await gain_advance(p, a, from_tracker)
 	if has_adv(p, "Free Education") and (paid.get("idea", 0) > 0 or paid.get("gold", 0) > 0) and a != "Free Education" and res(p, "idea") > 0:
 		if await yes_no(p, "Istruzione Gratuita: cambiare 1 Idea in 1 Umore?", "Sì, cambia", "No"):
