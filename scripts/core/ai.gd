@@ -9,11 +9,51 @@ extends RefCounted
 const D = preload("res://scripts/data/coc_data.gd")
 
 var level := 1
+var style := "balanced"
+
+## Personalità dell'IA: ogni stile sposta i pesi delle stesse valutazioni.
+## war_age: era da cui attacca i giocatori; war_dist: distanza massima del bersaglio; war_lack: unità
+## che recluta apposta per una campagna; war_unit: valore di ciascuna; war_bonus: interesse per le città
+## dei giocatori; ratio: forza richiesta per attaccare; march: frazione di forze con cui si avvicina;
+## garrison: guarnigione minima per città; fortress/build/adv: bonus a Fortezze, edifici, avanzamenti;
+## wonder: quanto tiene alle meraviglie; settler/ship: bonus a coloni e navi; cats: categorie preferite.
+const STYLES := {
+	"balanced": {"it": "Equilibrato", "war_age": 2, "war_dist": 6, "war_lack": 2, "war_unit": 3.0, "war_bonus": 0.0,
+		"ratio": 1.45, "march": 0.7, "garrison": 0, "fortress": 0.0, "build": 0.0, "adv": 0.0, "wonder": 1.0,
+		"settler": 0.0, "ship": 0.0, "cats": {}},
+	"aggressive": {"it": "Conquistatore", "war_age": 2, "war_dist": 8, "war_lack": 3, "war_unit": 4.0, "war_bonus": 2.5,
+		"ratio": 1.25, "march": 0.5, "garrison": 0, "fortress": 0.0, "build": 0.0, "adv": 0.0, "wonder": 0.8,
+		"settler": 0.0, "ship": 0.0, "cats": {"Warfare": 1.5, "Autocracy": 1.0}},
+	"defensive": {"it": "Difensore", "war_age": 5, "war_dist": 3, "war_lack": 0, "war_unit": 2.0, "war_bonus": -1.0,
+		"ratio": 1.9, "march": 1.0, "garrison": 1, "fortress": 3.0, "build": 0.5, "adv": 0.0, "wonder": 1.3,
+		"settler": 0.0, "ship": 0.0, "cats": {"Warfare": 0.8, "Spirituality": 1.0, "Theocracy": 1.0}},
+	"builder": {"it": "Costruttore", "war_age": 4, "war_dist": 4, "war_lack": 0, "war_unit": 2.0, "war_bonus": -1.0,
+		"ratio": 1.7, "march": 1.0, "garrison": 0, "fortress": 0.0, "build": 1.5, "adv": 1.0, "wonder": 1.6,
+		"settler": 0.5, "ship": 0.0, "cats": {"Construction": 1.2, "Education": 1.2, "Science": 1.0, "Traditions": 1.0, "Democracy": 1.0}},
+	"seafarer": {"it": "Navigatore", "war_age": 3, "war_dist": 6, "war_lack": 1, "war_unit": 3.0, "war_bonus": 0.0,
+		"ratio": 1.45, "march": 0.7, "garrison": 0, "fortress": 0.0, "build": 0.0, "adv": 0.3, "wonder": 1.0,
+		"settler": 1.5, "ship": 1.5, "cats": {"Maritime": 1.5, "Economy": 1.2}},
+}
+
+
+const STYLE_TEXT := {
+	"balanced": "un po' di tutto: si espande, costruisce e attacca quando conviene.",
+	"aggressive": "punta sull'esercito: recluta per conquistare, attacca presto e anche con meno margine.",
+	"defensive": "guarnigioni in ogni città, Fortezze e meraviglie; attacca solo se è molto più forte.",
+	"builder": "edifici, avanzamenti e meraviglie; l'esercito serve quasi solo a difendersi.",
+	"seafarer": "porti, navi e coloni oltremare; cerca le categorie Mare ed Economia.",
+}
+
+
+## Parametro dello stile attuale.
+func sv(k: String):
+	return STYLES.get(style, STYLES["balanced"]).get(k, STYLES["balanced"][k])
 var rng := RandomNumberGenerator.new()
 var fails := 0
 var last_turn := -1
 var tried := {}
 var war_cache := {}
+var war_last := {}
 
 const ADV_VALUE := {
 	"Storage": 9.0, "Tactics": 7.5, "Myths": 8.0, "Writing": 7.0, "Fishing": 6.0, "Irrigation": 6.0,
@@ -52,6 +92,14 @@ func adv_value(eng, p: int, a: String) -> float:
 		v += 1.0
 	if info["border"] == "c" and eng.has_adv(p, "Engineering") and not eng.players[p]["won"].is_empty():
 		v += 1.5
+	# categorie preferite dallo stile
+	v += float(sv("cats").get(info["cat"], 0.0))
+	if style == "aggressive" and a in ["Tactics", "Draft", "Steel Weapons", "Siegecraft", "Husbandry", "Bartering"]:
+		v += 1.5
+	if style == "defensive" and a in ["Tactics", "Siegecraft", "Myths"]:
+		v += 1.5
+	if style == "seafarer" and a in ["Fishing", "Navigation", "Cartography", "Warships", "Trade Routes"]:
+		v += 1.5 + (1.5 if a == "Trade Routes" else 0.0)
 	# obiettivi in mano che chiedono una categoria completa
 	var cat_obj := {"militarized": "Warfare", "culture": "Traditions", "enlightened": "Education", "seafarer": "Maritime",
 		"merchant": "Economy", "city_planner": "Construction", "science": "Science"}
@@ -236,7 +284,7 @@ func _war_target(eng, p: int) -> Dictionary:
 			if o == p:
 				continue
 			if o >= 0:
-				if eng.age < (4 if level == 0 else 2):
+				if eng.age < maxi(int(sv("war_age")), 4 if level == 0 else 2):
 					continue
 				if not eng.can_attack(p, o):
 					continue
@@ -246,22 +294,36 @@ func _war_target(eng, p: int) -> Dictionary:
 				dist = mini(dist, dm.get(mc["h"], 99))
 			for u in my_armies:
 				dist = mini(dist, dm.get(u["h"], 99))
-			if dist > (6 if o >= 0 else 5):
+			if dist > (int(sv("war_dist")) if o >= 0 else 5):
 				continue
 			var dp := _def_power(eng, p, c["h"])
 			var need := dp * 1.4 + 1.0
-			if need > 4.2:
+			if need > (4.8 if style == "aggressive" else 4.2):
 				continue
 			var val: float = 4.0 + eng.city_size(c) * 1.5
 			if o == -1:
 				val += 1.0
 			else:
-				val += conq * 1.5 + (1.5 if o == top else 0.0) + (1.0 if level >= 2 else 0.0)
+				val += conq * 1.5 + (1.5 if o == top else 0.0) + (1.0 if level >= 2 else 0.0) + float(sv("war_bonus"))
 			var sc: float = val - dist * 0.7 - dp * 1.2 - maxf(0.0, need - my_pow) * 0.6
+			# si resta sul bersaglio scelto finché ha senso: niente eserciti che vanno avanti e indietro
+			if c["h"] == war_last.get(p, ""):
+				sc += 2.5
 			if sc > bs:
 				bs = sc
 				best = {"h": c["h"], "need": need, "o": o, "dm": dm}
+		# punto di raccolta: la propria città più vicina al bersaglio
+		if not best.is_empty():
+			var rd := 99
+			for mc in my_cities:
+				var d3: int = best["dm"].get(mc["h"], 99)
+				if d3 < rd:
+					rd = d3
+					best["rally"] = mc["h"]
+			if best.has("rally"):
+				best["rm"] = _land_dist(eng, p, best["rally"], 10)
 	war_cache[p] = [eng.turn_count, best]
+	war_last[p] = best.get("h", "")
 	if OS.get_environment("COC_WARDBG") != "" and not best.is_empty():
 		print("WAR p%d era%d -> %s (o%d) need %.1f" % [p, eng.age, best["h"], best["o"], best["need"]])
 	return best
@@ -287,6 +349,22 @@ func _sea_spot(eng, p: int, h: String) -> Array:
 				bs = sv
 				best = [r, x, sv]
 	return best
+
+
+## Città nemiche (non arrabbiate) entro 2 caselle da k non ancora servite da altri coloni o navi propri.
+func _route_value(eng, p: int, k: String, ids: Array) -> int:
+	var n := 0
+	for c in eng.cities.values():
+		if c["o"] < 0 or c["o"] == p or c["mood"] == 0 or eng.hdist(c["h"], k) > 2:
+			continue
+		var served := false
+		for u in eng.units_of(p):
+			if u["t"] in ["settler", "ship"] and not ids.has(u["id"]) and eng.hdist(u["h"], c["h"]) <= 2:
+				served = true
+				break
+		if not served:
+			n += 1
+	return n
 
 
 func _sea_spot_from_city(eng, p: int, c: Dictionary) -> Array:
@@ -328,6 +406,21 @@ func _ship_move(eng, p: int, ids: Array) -> Array:
 				best = [4.5, {"units": ids, "to": x, "roads": false}]
 	if not best.is_empty():
 		return best
+	# Rotte Commerciali: la nave si piazza vicino alle città nemiche (Cibo a ogni turno)
+	if eng.has_adv(p, "Trade Routes"):
+		var here_r := _route_value(eng, p, h, ids)
+		if here_r > 0:
+			return []
+		var br := 0
+		for k in tg:
+			if tg[k]["kind"] != "sea" or tg[k].get("battle", false):
+				continue
+			var rv := _route_value(eng, p, k, ids)
+			if rv > br:
+				br = rv
+				best = [4.0 + rv * 0.8, {"units": ids, "to": k, "roads": false}]
+		if not best.is_empty():
+			return best
 	for k in tg:
 		var info: Dictionary = tg[k]
 		var v := 0.0
@@ -490,7 +583,7 @@ func _turn(eng, p: int) -> Dictionary:
 			# le Idee servono solo per gli avanzamenti: se ce ne sono, spenderle non costa nulla
 			var spen := 0.0 if use_pp or ideas >= 2 else _saving_penalty(eng, p, {"food": 2})
 			var ib := (1.5 + 0.6 * maxi(0, ideas - 3)) if ideas >= 2 else 0.0
-			cands.append([3.0 + bav * 0.55 - adv_pen - spen + ib, {"t": "advance", "a": ba, "pp": use_pp}])
+			cands.append([3.0 + bav * 0.55 - adv_pen - spen + ib + float(sv("adv")), {"t": "advance", "a": ba, "pp": use_pp}])
 		# movimento
 		var mv := _best_group_move(eng, p, {})
 		if not mv.is_empty() and mv[0] > 2.0:
@@ -581,6 +674,14 @@ func _uses_wonder_res(eng, p: int, cost: Dictionary) -> bool:
 	return false
 
 
+## Una città nemica (di un giocatore o barbara) entro 3 caselle.
+func _near_enemy_city(eng, p: int, c: Dictionary) -> bool:
+	for c2 in eng.cities.values():
+		if c2["o"] != p and eng.hdist(c2["h"], c["h"]) <= 3:
+			return true
+	return false
+
+
 ## Penalità per una spesa che allontana dalla meraviglia che si sta preparando.
 func _saving_penalty(eng, p: int, cost: Dictionary) -> float:
 	var wt := _wonder_target(eng, p)
@@ -615,7 +716,7 @@ func _wonder_focus(eng, p: int) -> bool:
 	var w := _wonder_target(eng, p)
 	if w == "" or eng.age < 3:
 		return false
-	return _wonder_missing(eng, p, w) <= (8 if eng.age == 3 else 14)
+	return _wonder_missing(eng, p, w) <= roundi((8 if eng.age == 3 else 14) * float(sv("wonder")))
 
 
 ## Si mette da parte la Cultura per una Meraviglia in mano (ne servono 5).
@@ -651,7 +752,11 @@ func _wonder_missing(eng, p: int, w: String) -> int:
 
 func _building_value(eng, p: int, c: Dictionary, b: String) -> float:
 	# ogni edificio è 1 PV e fa crescere la città (più raccolta e più reclutamento)
-	var v := 9.5 + (1.0 if c["mood"] == 2 else 0.0) + (1.0 if eng.age <= 3 else 0.0)
+	var v := 9.5 + (1.0 if c["mood"] == 2 else 0.0) + (1.0 if eng.age <= 3 else 0.0) + float(sv("build"))
+	if b == "fortress":
+		v += float(sv("fortress"))
+	if b == "port" and style == "seafarer":
+		v += 2.0
 	match b:
 		"temple":
 			v += 1.5
@@ -698,22 +803,30 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 		comp["infantry"] = k
 		budget -= k
 		v += 5.5 * k + (3.0 if here == 0 else 0.0)
+	# Difensore: una guarnigione in ogni città (due nelle città di confine), dall'era 2
+	var gar: int = int(sv("garrison"))
+	if gar > 0 and eng.age >= 2 and eng.has_adv(p, "Tactics") and comp["infantry"] == 0 and budget > 0:
+		var want_g: int = gar + (1 if _near_enemy_city(eng, p, c) else 0)
+		if here < want_g and eng.supply_left(p, "infantry") > 0:
+			comp["infantry"] = mini(budget, want_g - here)
+			budget -= comp["infantry"]
+			v += 3.5 * comp["infantry"]
 	# coloni per espandersi (anche oltremare, se c'è una nave per portarli)
 	var land_tgt: float = _settler_target(eng, p, c["h"])[1]
 	var sea_ok: bool = land_tgt < 2.0 and eng.is_coastal(c) and not _sea_spot_from_city(eng, p, c).is_empty() \
 			and (not eng.units_of(p, "ship").is_empty() or c["b"].has("port"))
-	if budget > 0 and ncity + settlers < 8 and settlers < 2 and eng.supply_left(p, "settler") > 0 \
+	if budget > 0 and ncity + settlers < (9 if style == "seafarer" else 8) and settlers < 2 and eng.supply_left(p, "settler") > 0 \
 			and (land_tgt >= 2.0 or sea_ok):
 		comp["settler"] = 2 if (budget >= 2 and ncity < 4 and settlers == 0 and land_tgt >= 2.0) else 1
 		budget -= comp["settler"]
-		v += (7.0 if ncity < 4 else 4.5) + (comp["settler"] - 1) * 2.0
+		v += (7.0 if ncity < 4 else 4.5) + (comp["settler"] - 1) * 2.0 + float(sv("settler"))
 	# navi: trasporto dei coloni, pirati, esplorazione, obiettivi navali
 	if budget > 0 and c["b"].has("port") and eng.supply_left(p, "ship") > 0:
-		var sv := _ship_demand(eng, p, c, sea_ok or (settlers > 0 and land_tgt < 2.0))
-		if sv > 0.0:
+		var shipv := _ship_demand(eng, p, c, sea_ok or (settlers > 0 and land_tgt < 2.0))
+		if shipv > 0.0:
 			comp["ship"] = 1
 			budget -= 1
-			v += sv
+			v += shipv
 	# un piccolo esercito per i barbari vicini
 	if budget > 0 and eng.has_adv(p, "Tactics") and _barb_threat(eng, p) > 0 and here < 3 and comp["infantry"] == 0:
 		comp["infantry"] = mini(budget, 2)
@@ -724,21 +837,24 @@ func _recruit_plan(eng, p: int, c: Dictionary) -> Array:
 	var wt := {} if focus else _war_target(eng, p)
 	if budget > 0 and not wt.is_empty() and eng.supply_left(p, "infantry") > comp["infantry"]:
 		var dm: Dictionary = wt["dm"]
-		if dm.get(c["h"], 99) <= 5:
+		var rally: String = wt.get("rally", "")
+		# si recluta di preferenza nel punto di raccolta; il Conquistatore anche nelle altre città vicine
+		if (c["h"] == rally or rally == "" or style == "aggressive") and dm.get(c["h"], 99) <= int(sv("war_dist")):
 			var near := 0.0
+			var rm: Dictionary = wt.get("rm", {})
 			for u in eng.units_of(p):
-				if eng.is_army(u) and u["on"] == -1 and dm.get(u["h"], 99) <= 4:
+				if eng.is_army(u) and u["on"] == -1 and (rm.get(u["h"], 99) <= 2 or dm.get(u["h"], 99) <= 2):
 					near += _unit_power(u)
 			var lack: int = ceili(float(wt["need"]) - near)
 			# si recluta per la campagna solo se mancano poche unità: le guerre lunghe costano troppo
-			if lack > 1 or eng.age < 3:
+			if lack > int(sv("war_lack")) or eng.age < (2 if style == "aggressive" else 3):
 				lack = 0
 			var k2 := mini(budget, mini(lack, 4 - here - comp["infantry"]))
 			k2 = mini(k2, eng.supply_left(p, "infantry") - comp["infantry"])
 			if k2 > 0:
 				comp["infantry"] += k2
 				budget -= k2
-				v += (3.0 + (0.5 if level >= 2 else 0.0)) * k2
+				v += (float(sv("war_unit")) + (0.5 if level >= 2 else 0.0)) * k2
 	# espansione: un Leader appena possibile (le sue abilità valgono molto)
 	if eng.exp and budget > 0 and eng.leader_unit(p).is_empty() and eng.can_recruit_type(p, c, "leader") \
 			and eng.res(p, "culture") >= 2 and eng.res(p, "mood") >= 2 and here < 4:
@@ -799,13 +915,20 @@ func _ship_demand(eng, p: int, c: Dictionary, transport: bool) -> float:
 				naval += 1
 	if naval > 0 and ships < 2 + naval:
 		v += 3.0
-	# esplorare il mare all'inizio
+	# Rotte Commerciali: navi vicino alle città costiere nemiche
+	if eng.has_adv(p, "Trade Routes") and ships < 2:
+		for c2 in eng.cities.values():
+			if c2["o"] >= 0 and c2["o"] != p and eng.is_coastal(c2) and eng.hdist(c2["h"], c["h"]) <= 5:
+				v += 3.0
+				break
+		# esplorare il mare all'inizio
 	if eng.age <= 3 and ships == 0 and _unexplored_by_sea(eng, p, c):
 		v += 2.5
 	# legno in eccesso: una nave costa 2 Legno
 	if eng.res(p, "wood") >= 5 and ships < 2:
 		v += 1.5
-	if ships >= 3:
+	v += float(sv("ship")) if v > 0.0 or style == "seafarer" else 0.0
+	if ships >= (4 if style == "seafarer" else 3):
 		v -= 3.0
 	return v
 
@@ -1199,6 +1322,11 @@ func _army_move(eng, p: int, ids: Array) -> Array:
 	var u: Dictionary = eng.units[ids[0]]
 	var here_city: Dictionary = eng.city_at(u["h"])
 	var threat: int = _city_threat(eng, p, here_city) if not here_city.is_empty() and here_city["o"] == p else 0
+	# il Conquistatore lascia guarnigioni più leggere (la Fortezza aiuta), il Difensore più pesanti
+	if style == "aggressive" and threat > 0:
+		threat = maxi(1, threat - (2 if here_city["b"].has("fortress") else 1))
+	elif style == "defensive" and threat > 0:
+		threat += 1
 	var guarding: bool = threat > 0
 	var wt := _war_target(eng, p)
 	# in una propria città minacciata resta una guarnigione: si muove solo il resto
@@ -1237,7 +1365,7 @@ func _army_move(eng, p: int, ids: Array) -> Array:
 				if my_pow >= dp * 1.3 + 0.2:
 					v = 5.0
 			else:
-				var ratio := 2.0 if level == 0 else (1.3 if level >= 2 else 1.45)
+				var ratio: float = 2.0 if level == 0 else float(sv("ratio")) - (0.15 if level >= 2 else 0.0)
 				if undefended and not c.is_empty():
 					v = 10.0 + eng.city_size(c) * 1.5
 				elif my_pow >= dp * ratio + 0.3:
@@ -1255,21 +1383,20 @@ func _army_move(eng, p: int, ids: Array) -> Array:
 			if not wt.is_empty() and not guarding and dm.get(k, 99) < d_now and my_pow >= float(wt["need"]):
 				v = maxf(v, 3.0)
 		elif info["kind"] in ["land", "disembark"]:
-			# marcia verso il bersaglio della campagna; a due caselle si aspettano i rinforzi
+			# campagna: gli eserciti si radunano nella città più vicina al bersaglio, poi marciano
 			if not wt.is_empty() and not guarding:
 				var d_new: int = dm.get(k, 99)
-				if d_new < d_now and d_now <= 9:
-					var join := _power(eng.armies_at(k, p))
-					var ready: bool = my_pow + join >= float(wt["need"])
-					# si parte solo con forze sufficienti (o per unirsi ad altri eserciti sulla strada)
-					if ready:
-						v = maxf(v, 5.0 + (0.4 if join > 0.0 else 0.0))
-					elif d_new >= 2 and my_pow + join >= float(wt["need"]) * 0.7:
-						v = maxf(v, 3.2)
-			# raggruppa gli eserciti sparsi vicino al fronte
-			if not wt.is_empty() and d_now <= 4 and not guarding and my_pow < float(wt["need"]):
-				if _power(eng.armies_at(k, p)) + my_pow >= float(wt["need"]) and dm.get(k, 99) <= d_now:
-					v = maxf(v, 3.5)
+				var rally: String = wt.get("rally", "")
+				var rm: Dictionary = wt.get("rm", {})
+				var join := _power(eng.armies_at(k, p))
+				if rally == "" or u["h"] == rally or d_now <= dm.get(rally, 99):
+					if d_new < d_now and d_now <= 9:
+						if my_pow + join >= float(wt["need"]):
+							v = maxf(v, 5.0 + (0.4 if join > 0.0 else 0.0))
+						elif d_new >= 2 and my_pow + join >= float(wt["need"]) * float(sv("march")):
+							v = maxf(v, 3.2)
+				elif rm.get(k, 99) < rm.get(u["h"], 99):
+					v = maxf(v, 3.4 + (0.4 if k == rally else 0.0))
 			# avvicinarsi a una città barbara debole
 			for b in eng.cities_of(-1):
 				var d0: int = eng.hdist(u["h"], b["h"])

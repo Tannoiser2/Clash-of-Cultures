@@ -1,7 +1,7 @@
 extends SceneTree
 ## Partite IA contro IA senza grafica, per provare le regole e tarare l'IA.
 ## godot --headless --path . -s res://tests/sim.gd -- <partite> <giocatori> [livelli es. 1,1,2] [log]
-## Variabile d'ambiente COC_CIV=1: partite con l'espansione Civiltà.
+## Variabile d'ambiente COC_CIV=1: partite con l'espansione Civiltà; AI_STYLE=aggressive (o un altro stile, o random).
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -26,7 +26,7 @@ func _initialize() -> void:
 		root.add_child(e)
 		var seats := []
 		for i in np:
-			seats.append({"color": i, "ai": true, "name": "IA%d" % i, "level": levels[i]})
+			seats.append({"color": i, "ai": true, "name": "IA%d" % i, "level": levels[i], "style": OS.get_environment("AI_STYLE") if OS.get_environment("AI_STYLE") != "" else "balanced"})
 		var civ := OS.get_environment("COC_CIV") != ""
 		e.setup({"seats": seats, "seed": 1000 + g, "opts": {"civ": civ}})
 		if civ and OS.get_environment("COC_FUZZ") != "":

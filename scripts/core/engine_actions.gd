@@ -6,7 +6,8 @@ const LAYOUT_FOR := {2: "1", 3: "2", 4: "0"}
 
 # ------------------------------------------------------------------ preparazione
 
-## config: {"seats":[{"color","ai","name","level"}], "seed", "opts":{}}
+## config: {"seats":[{"color","ai","name","level","style"}], "seed", "opts":{}}
+## style: personalità dell'IA ("balanced", "aggressive", "defensive", "builder", "seafarer" o "random").
 func setup(config: Dictionary) -> void:
 	if config.has("seed"):
 		rng.seed = int(config["seed"])
@@ -18,7 +19,7 @@ func setup(config: Dictionary) -> void:
 	players.clear()
 	for st in config["seats"]:
 		players.append({"color": int(st["color"]), "ai": bool(st["ai"]), "name": str(st["name"]),
-			"level": int(st.get("level", 1)), "res": {"food": 2, "wood": 0, "ore": 0, "idea": 0, "gold": 0},
+			"level": int(st.get("level", 1)), "style": str(st.get("style", "balanced")), "res": {"food": 2, "wood": 0, "ore": 0, "idea": 0, "gold": 0},
 			"mood": 0, "culture": 0, "adv": ["Farming", "Mining"], "tracker": 3, "hand": [], "obj": [],
 			"won": [], "done": [], "vp_extra": 0.0, "home": "", "events": [], "gov_cubes": 0})
 	n = players.size()
@@ -119,6 +120,11 @@ func setup(config: Dictionary) -> void:
 	for p in n:
 		var a = load("res://scripts/core/ai.gd").new()
 		a.level = players[p]["level"]
+		if players[p]["ai"]:
+			var keys: Array = a.STYLES.keys()
+			if players[p]["style"] == "random" or not keys.has(players[p]["style"]):
+				players[p]["style"] = keys[rng.randi() % keys.size()] if players[p]["style"] == "random" else "balanced"
+			a.style = players[p]["style"]
 		a.rng.seed = rng.seed + 7919 * (p + 1)
 		ais[p] = a
 

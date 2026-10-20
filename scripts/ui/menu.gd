@@ -1,15 +1,19 @@
 extends Control
 ## Menu principale: il dipinto della scatola, le civiltà al tavolo (Umano / IA / Assente) con il
-## livello dell'IA, le opzioni, il gioco online e le regole.
+## livello e lo stile dell'IA, le opzioni, il gioco online e le regole.
 
 const D = preload("res://scripts/data/coc_data.gd")
 const MODES := ["Umano", "IA", "Assente"]
 const LEVELS := ["Facile", "Normale", "Difficile"]
+const AI = preload("res://scripts/core/ai.gd")
+## stili dell'IA: "random" li sceglie a caso all'inizio della partita
+const STYLE_KEYS := ["random", "balanced", "aggressive", "defensive", "builder", "seafarer"]
 const NAMES := ["Roma", "Persia", "Egitto", "Cartagine"]
 
 var main
 var seat_mode := [0, 1, 1, 2]
 var levels := [1, 1, 1, 1]
+var styles := ["random", "random", "random", "random"]
 var names := NAMES.duplicate()
 var speed := 1
 var mods := {}
@@ -28,6 +32,7 @@ func _ready() -> void:
 	if main.menu_state.has("seat_mode"):
 		seat_mode = main.menu_state["seat_mode"].duplicate()
 		levels = main.menu_state["levels"].duplicate()
+		styles = main.menu_state.get("styles", styles).duplicate()
 		names = main.menu_state["names"].duplicate()
 		speed = main.menu_state["speed"]
 		mods = main.menu_state.get("mods", {}).duplicate()
@@ -174,11 +179,18 @@ func _refresh_rows() -> void:
 				levels[ii] = (levels[ii] + 1) % 3
 				_refresh_rows())
 			hb.add_child(lv)
+			var sk: String = styles[i]
+			var st := UI.button("Stile casuale" if sk == "random" else AI.STYLES[sk]["it"], 170, 42, 15)
+			st.tooltip_text = ("Stile dell'IA (clicca per cambiarlo): " + ("ne sceglie uno a caso all'inizio della partita." if sk == "random" else AI.STYLE_TEXT[sk]))
+			st.pressed.connect(func():
+				styles[ii] = STYLE_KEYS[(STYLE_KEYS.find(styles[ii]) + 1) % STYLE_KEYS.size()]
+				_refresh_rows())
+			hb.add_child(st)
 		rows.add_child(hb)
 
 
 func _store() -> void:
-	main.menu_state = {"seat_mode": seat_mode.duplicate(), "levels": levels.duplicate(), "names": names.duplicate(),
+	main.menu_state = {"seat_mode": seat_mode.duplicate(), "levels": levels.duplicate(), "styles": styles.duplicate(), "names": names.duplicate(),
 		"speed": speed, "mods": mods.duplicate()}
 
 
@@ -199,7 +211,7 @@ func _config() -> Dictionary:
 		var nm: String = names[i].strip_edges()
 		if nm == "":
 			nm = D.COLORS[i]["name"]
-		seats.append({"color": i, "ai": m == 1, "name": nm, "level": levels[i]})
+		seats.append({"color": i, "ai": m == 1, "name": nm, "level": levels[i], "style": styles[i]})
 	var speeds := [1.1, 0.6, 0.2, 0.0]
 	var o := {}
 	for m in MOD_LIST:

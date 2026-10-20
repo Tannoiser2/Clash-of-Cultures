@@ -1,7 +1,7 @@
 extends SceneTree
 ## Statistiche sul comportamento dell'IA: reclutamenti per tipo, battaglie fra giocatori, meraviglie,
 ## risorse ferme in magazzino. godot --headless --path . -s res://tests/ai_stats.gd -- <partite> <giocatori>
-## COC_CIV=1 per l'espansione Civiltà.
+## COC_CIV=1 per l'espansione Civiltà; AI_STYLE=aggressive (defensive, builder, seafarer) per uno stile.
 
 const D = preload("res://scripts/data/coc_data.gd")
 var e
@@ -60,7 +60,7 @@ func _initialize() -> void:
 		root.add_child(e)
 		var seats := []
 		for i in np:
-			seats.append({"color": i, "ai": true, "name": "IA%d" % i, "level": 1})
+			seats.append({"color": i, "ai": true, "name": "IA%d" % i, "level": 1, "style": OS.get_environment("AI_STYLE") if OS.get_environment("AI_STYLE") != "" else "balanced"})
 		e.setup({"seats": seats, "seed": 2000 + g, "opts": {"civ": civ}})
 		e.log_added.connect(_on_log)
 		await e.run()

@@ -8,6 +8,9 @@ extends "res://scripts/core/engine_civ.gd"
 
 func run() -> void:
 	log_msg("Comincia la partita: %d civiltà, 6 ere di 3 round." % n)
+	for p in n:
+		if players[p]["ai"]:
+			log_msg("%s è guidata dall'IA: stile %s." % [pname(p), ais[p].STYLES[ais[p].style]["it"]])
 	log_msg("Primo giocatore: %s." % pname(first))
 	changed.emit()
 	var last_age := 6 if not opts.get("short", false) else 4

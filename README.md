@@ -12,7 +12,7 @@ Versione digitale per uso personale di **Clash of Cultures: Monumental Edition**
 
 ## Cosa c'è
 - **Da 2 a 4 civiltà** (Rosso, Viola, Blu, Giallo) con nome a scelta, ognuna Umana o IA (Facile, Normale,
-  Difficile). Più persone sullo stesso dispositivo giocano a turno, con una schermata «tocca a…» per tenere
+  Difficile) con uno stile: Equilibrato, Conquistatore, Difensore, Costruttore, Navigatore o casuale. Più persone sullo stesso dispositivo giocano a turno, con una schermata «tocca a…» per tenere
   segrete le carte.
 - **Mappa 3D**: le regioni esagonali hanno la grafica delle tessere del gioco e si scoprono esplorando (si
   sceglie l'orientamento con l'anteprima sulla mappa, rispettando le regole di piazzamento dei mari). Le
@@ -39,6 +39,14 @@ gruppo nella direzione scelta), i pagamenti usano automaticamente prima la risor
 obiettivi si completano da soli quando sono soddisfatti. L'IA è euristica: espande, si difende dai barbari e
 attacca quando è in vantaggio, sceglie dove fondare evitando di sovrapporre le città, esplora attorno alle
 proprie città, punta sugli edifici e risparmia Cultura e Umore per le meraviglie (che restano rare).
+Gli stili dell'IA cambiano i pesi delle stesse valutazioni:
+- **Equilibrato**: un po' di tutto; organizza campagne contro la città nemica più conveniente.
+- **Conquistatore**: attacca dall'era 2 e anche con meno margine, recluta apposta per le campagne, lascia
+  guarnigioni leggere e cerca gli avanzamenti di Guerra.
+- **Difensore**: una guarnigione in ogni città (due al confine), Fortezze, attacca solo se molto più forte.
+- **Costruttore**: edifici, avanzamenti e meraviglie; quasi solo difesa.
+- **Navigatore**: porti, navi per esplorare, portare coloni oltremare e tenere le Rotte Commerciali.
+Tutte le campagne radunano gli eserciti nella città più vicina al bersaglio e partono solo con forze sufficienti.
 
 Gli scambi liberi fra giocatori non sono gestiti.
 
@@ -98,7 +106,8 @@ scripts/ui/menu.gd              menu e stanze online
 scripts/net/                    Firebase (REST) e partita online in lockstep
 tools/prepara_asset.py          estrae tessere, carte, modelli e disposizioni dal modulo TTS
 tools/sintetizza_audio.py       musica
-tests/                          sim.gd (IA contro IA), ai_stats.gd (comportamento dell'IA), duel.gd + ai_old.gd
+tests/                          sim.gd (IA contro IA), ai_stats.gd (comportamento dell'IA), styles.gd (torneo
+                                fra gli stili dell'IA), duel.gd + ai_old.gd
                                 (nuova IA contro la precedente), shot.gd (screenshot), online_play.gd + firebase_mock.py
 ```
 
@@ -110,6 +119,7 @@ COC_CIV=1 COC_FUZZ=1 godot --headless --path . -s res://tests/sim.gd -- 6 4   # 
 godot --headless --path . -s res://tests/exp_specials.gd             # ogni azione speciale dell'espansione
 godot --headless --path . -s res://tests/ai_stats.gd -- 12 4         # battaglie, reclutamenti, meraviglie, risorse ferme
 godot --headless --path . -s res://tests/duel.gd -- 48 4             # IA attuale contro la versione precedente
+godot --headless --path . -s res://tests/styles.gd -- 40             # torneo fra gli stili (AI_STYLE=… per sim/ai_stats)
 xvfb-run godot --path . -s res://tests/shot.gd -- game 6             # screenshot in user://shots
 xvfb-run godot --path . -s res://tests/shot.gd -- civ                # screenshot dell'espansione
 ```

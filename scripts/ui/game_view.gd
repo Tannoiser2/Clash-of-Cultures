@@ -3,6 +3,7 @@ extends Control
 ## a destra, le azioni in basso. Si clicca una casella per vederla e agire: città (raccogli,
 ## costruisci, recluta, meraviglie), coloni (fonda), unità (muovi).
 
+const AI = preload("res://scripts/core/ai.gd")
 const D = preload("res://scripts/data/coc_data.gd")
 const LW := 340.0
 const RX := 1570.0
@@ -283,7 +284,11 @@ func _player_row(p: int) -> Control:
 	dot.custom_minimum_size = Vector2(16, 16)
 	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hb.add_child(dot)
-	var nm := UI.label(" " + pl["name"] + ("  (IA)" if pl["ai"] else ""), 19, col.lightened(0.45), UI.font_bold)
+	var sty: String = AI.STYLES.get(pl.get("style", "balanced"), AI.STYLES["balanced"])["it"]
+	var nm := UI.label(" " + pl["name"] + (("  (IA, %s)" % sty) if pl["ai"] else ""), 19, col.lightened(0.45), UI.font_bold)
+	if pl["ai"]:
+		nm.tooltip_text = "IA %s: %s" % [sty, AI.STYLE_TEXT.get(pl.get("style", "balanced"), "")]
+		nm.mouse_filter = Control.MOUSE_FILTER_PASS
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	nm.clip_text = true
 	hb.add_child(nm)

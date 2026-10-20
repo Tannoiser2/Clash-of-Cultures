@@ -54,7 +54,7 @@ func _run() -> void:
 		await shot("rules")
 		quit()
 		return
-	var seats := [{"color": 0, "ai": false, "name": "Roma", "level": 1}, {"color": 1, "ai": true, "name": "Persia", "level": 1},
+	var seats := [{"color": 0, "ai": false, "name": "Roma", "level": 1}, {"color": 1, "ai": true, "name": "Persia", "level": 1, "style": "aggressive"},
 		{"color": 2, "ai": true, "name": "Egitto", "level": 1}, {"color": 3, "ai": true, "name": "Cartagine", "level": 1}]
 	if mode == "civ":
 		await _civ_shots(seats)
